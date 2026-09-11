@@ -1,24 +1,34 @@
 require("dotenv").config();
 
-const express = require("express"),
-  path = require("path"),
-  fs = require("fs"),
-  bcrypt = require("bcryptjs"),
-  jwt = require("jsonwebtoken"),
-  crypto = require("crypto");
+const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 
 const app = express();
 
 app.use(express.json({ limit: "2mb" }));
 
 const PORT = process.env.PORT || 3000;
-const SECRET = process.env.JWT_SECRET || "change-me";
-const ADMIN_EMAIL = (
-  process.env.ADMIN_EMAIL || "admin@goodnewsshopping.com"
-).toLowerCase();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
+
+const SECRET =
+  process.env.JWT_SECRET || "change-me";
+
+const ADMIN_EMAIL =
+  (
+    process.env.ADMIN_EMAIL ||
+    "admin@goodnewsshopping.com"
+  ).toLowerCase();
+
+const ADMIN_PASSWORD =
+  process.env.ADMIN_PASSWORD ||
+  "ChangeMe123!";
+
 const DB =
-  process.env.DB_FILE || path.join(__dirname, "data.json");
+  process.env.DB_FILE ||
+  path.join(__dirname, "data.json");
 
 let db = {
   users: [],
@@ -29,304 +39,928 @@ let db = {
 
 if (fs.existsSync(DB)) {
   try {
-    db = JSON.parse(fs.readFileSync(DB));
-  } catch {}
+    db = JSON.parse(
+      fs.readFileSync(DB, "utf8")
+    );
+  } catch {
+    console.log("Could not read database.");
+  }
+}
+
+if (!Array.isArray(db.users)) {
+  db.users = [];
+}
+
+if (!Array.isArray(db.products)) {
+  db.products = [];
+}
+
+if (!Array.isArray(db.orders)) {
+  db.orders = [];
+}
+
+if (!Array.isArray(db.categories)) {
+  db.categories = [];
 }
 
 function save() {
-  fs.writeFileSync(DB, JSON.stringify(db, null, 2));
-}
-
-/* =========================
-   PRODUCT CATALOGUE
-   ========================= */
-
-const pics = {
-  phone:
-    "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=90",
-
-  laptop:
-    "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=1200&q=90",
-
-  audio:
-    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1200&q=90",
-
-  tv:
-    "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=1200&q=90",
-
-  fashion:
-    "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=90",
-
-  shoes:
-    "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=90",
-
-  home:
-    "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1200&q=90",
-
-  watch:
-    "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=90"
-};
-
-const catalogueCategories = [
-  ["Phones & Tablets", "📱", "phone", 25000, 750000],
-  ["Computing", "💻", "laptop", 45000, 1500000],
-  ["Electronics", "🎧", "audio", 8000, 450000],
-  ["TV & Audio", "📺", "tv", 25000, 1800000],
-  ["Fashion", "👕", "fashion", 5000, 250000],
-  ["Shoes", "👟", "shoes", 7000, 300000],
-  ["Beauty", "✨", "fashion", 3000, 180000],
-  ["Home", "🏠", "home", 10000, 1200000],
-  ["Appliances", "🧺", "home", 15000, 900000],
-  ["Groceries", "🛒", "home", 1000, 100000],
-  ["Gaming", "🎮", "audio", 10000, 900000],
-  ["Accessories", "⌚", "watch", 3000, 250000],
-  ["Baby", "🍼", "fashion", 3000, 180000],
-  ["Sports", "⚽", "shoes", 5000, 350000],
-  ["Books", "📚", "home", 2000, 90000],
-  ["Office", "🖨️", "laptop", 3000, 500000]
-];
-
-const productTypes = [
-  "Classic",
-  "Premium",
-  "Smart",
-  "Advanced",
-  "Portable",
-  "Wireless",
-  "Digital",
-  "Modern",
-  "Pro",
-  "Ultra",
-  "Essential",
-  "Deluxe",
-  "Compact",
-  "Professional",
-  "Everyday",
-  "Power",
-  "Max",
-  "Plus",
-  "Elite",
-  "Comfort",
-  "Performance",
-  "Standard",
-  "Executive",
-  "Signature",
-  "Ultimate"
-];
-
-const productNames = [
-  "Series",
-  "Model",
-  "Edition",
-  "Set",
-  "Kit",
-  "Pack",
-  "Collection",
-  "Device",
-  "System",
-  "Unit",
-  "Bundle",
-  "Choice",
-  "Select",
-  "Line",
-  "Range",
-  "Solution",
-  "Gear",
-  "Essentials",
-  "Station",
-  "Hub",
-  "Center",
-  "Box",
-  "Mate",
-  "Plus",
-  "Pro"
-];
-
-function makePrice(min, max, index) {
-  const range = max - min;
-  const raw = min + ((index * 7919) % Math.max(range, 1));
-  return Math.max(
-    1000,
-    Math.round(raw / 1000) * 1000
+  fs.writeFileSync(
+    DB,
+    JSON.stringify(db, null, 2)
   );
 }
 
-function makeOldPrice(price, index) {
-  if (index % 3 === 0) {
-    return Math.round((price * 1.18) / 1000) * 1000;
+/* =====================================================
+   GOOD NEWS SHOPPING - LARGE PRODUCT CATALOGUE
+   ===================================================== */
+
+const catalogue = [
+  {
+    category: "Phones & Tablets",
+    icon: "📱",
+    search: "smartphone,tablet",
+    items: [
+      "Smartphone 128GB",
+      "Smartphone 256GB",
+      "Android Smartphone",
+      "5G Smartphone",
+      "Budget Smartphone",
+      "Camera Smartphone",
+      "Gaming Smartphone",
+      "Foldable Smartphone",
+      "Mini Smartphone",
+      "Premium Smartphone",
+      "Tablet 8-inch",
+      "Tablet 10-inch",
+      "Tablet 11-inch",
+      "Android Tablet",
+      "Kids Tablet",
+      "Drawing Tablet",
+      "Study Tablet",
+      "Wi-Fi Tablet",
+      "Tablet Keyboard",
+      "Tablet Case",
+      "Fast Phone Charger",
+      "Wireless Phone Charger",
+      "Phone Power Bank",
+      "USB-C Cable",
+      "Phone Stand"
+    ]
+  },
+
+  {
+    category: "Computing",
+    icon: "💻",
+    search: "laptop,computer",
+    items: [
+      "Student Laptop",
+      "Business Laptop",
+      "Gaming Laptop",
+      "Slim Laptop",
+      "15-inch Laptop",
+      "14-inch Laptop",
+      "2-in-1 Laptop",
+      "Professional Laptop",
+      "Budget Laptop",
+      "Premium Laptop",
+      "Desktop Computer",
+      "Mini Desktop PC",
+      "All-in-One Computer",
+      "Computer Monitor",
+      "27-inch Monitor",
+      "24-inch Monitor",
+      "Mechanical Keyboard",
+      "Wireless Keyboard",
+      "Gaming Mouse",
+      "Wireless Mouse",
+      "Laptop Stand",
+      "Laptop Backpack",
+      "USB Hub",
+      "External SSD",
+      "Webcam"
+    ]
+  },
+
+  {
+    category: "Electronics",
+    icon: "🎧",
+    search: "electronics,gadget",
+    items: [
+      "Bluetooth Speaker",
+      "Portable Speaker",
+      "Wireless Earbuds",
+      "Noise Cancelling Headphones",
+      "Over-Ear Headphones",
+      "Neckband Earphones",
+      "Digital Camera",
+      "Action Camera",
+      "Ring Light",
+      "LED Desk Light",
+      "Smart Plug",
+      "Power Strip",
+      "Extension Box",
+      "Rechargeable Fan",
+      "Electric Kettle",
+      "Hair Dryer",
+      "Electric Shaver",
+      "Body Massager",
+      "Portable Projector",
+      "Voice Recorder",
+      "Wireless Microphone",
+      "FM Radio",
+      "Digital Alarm Clock",
+      "Power Bank",
+      "USB Fan"
+    ]
+  },
+
+  {
+    category: "TV & Audio",
+    icon: "📺",
+    search: "television,tv",
+    items: [
+      "32-inch Smart TV",
+      "40-inch Smart TV",
+      "43-inch Smart TV",
+      "50-inch Smart TV",
+      "55-inch Smart TV",
+      "65-inch Smart TV",
+      "75-inch Smart TV",
+      "4K LED TV",
+      "4K QLED TV",
+      "OLED Smart TV",
+      "Android TV Box",
+      "Streaming Stick",
+      "Home Theatre System",
+      "Soundbar System",
+      "Bluetooth Sound System",
+      "Subwoofer",
+      "Digital Decoder",
+      "TV Wall Mount",
+      "TV Stand",
+      "HDMI Cable",
+      "Optical Audio Cable",
+      "Satellite Receiver",
+      "Mini Projector",
+      "Projector Screen",
+      "Portable TV"
+    ]
+  },
+
+  {
+    category: "Fashion",
+    icon: "👕",
+    search: "clothing,fashion",
+    items: [
+      "Men's T-Shirt",
+      "Women's T-Shirt",
+      "Men's Shirt",
+      "Women's Blouse",
+      "Men's Trousers",
+      "Women's Trousers",
+      "Men's Jeans",
+      "Women's Jeans",
+      "Men's Hoodie",
+      "Women's Hoodie",
+      "Men's Jacket",
+      "Women's Jacket",
+      "Men's Shorts",
+      "Women's Shorts",
+      "Men's Suit",
+      "Women's Dress",
+      "Maxi Dress",
+      "Skirt",
+      "Polo Shirt",
+      "Sports Jersey",
+      "Traditional Outfit",
+      "Cardigan",
+      "Sweater",
+      "Nightwear Set",
+      "Clothing Pack"
+    ]
+  },
+
+  {
+    category: "Shoes",
+    icon: "👟",
+    search: "shoes,footwear",
+    items: [
+      "Men's Sneakers",
+      "Women's Sneakers",
+      "Running Shoes",
+      "Football Boots",
+      "Basketball Shoes",
+      "Canvas Shoes",
+      "Casual Shoes",
+      "Formal Shoes",
+      "Loafers",
+      "Slippers",
+      "Slides",
+      "Sandals",
+      "High Heels",
+      "Flat Shoes",
+      "School Shoes",
+      "Safety Boots",
+      "Hiking Shoes",
+      "Tennis Shoes",
+      "Training Shoes",
+      "Walking Shoes",
+      "Children's Sneakers",
+      "Children's Sandals",
+      "Leather Shoes",
+      "Sports Slides",
+      "Fashion Boots"
+    ]
+  },
+
+  {
+    category: "Beauty",
+    icon: "✨",
+    search: "beauty,cosmetics",
+    items: [
+      "Face Cleanser",
+      "Face Cream",
+      "Body Lotion",
+      "Body Wash",
+      "Shampoo",
+      "Conditioner",
+      "Hair Oil",
+      "Hair Gel",
+      "Hair Brush",
+      "Hair Dryer Brush",
+      "Perfume",
+      "Body Spray",
+      "Deodorant",
+      "Lip Gloss",
+      "Lipstick",
+      "Makeup Kit",
+      "Foundation",
+      "Face Powder",
+      "Mascara",
+      "Eyeliner",
+      "Nail Polish",
+      "Nail Care Set",
+      "Sunscreen",
+      "Beauty Mirror",
+      "Makeup Brush Set"
+    ]
+  },
+
+  {
+    category: "Home",
+    icon: "🏠",
+    search: "home,furniture",
+    items: [
+      "Modern Sofa",
+      "Office Chair",
+      "Dining Table",
+      "Dining Chair",
+      "Bed Frame",
+      "Mattress",
+      "Bedside Table",
+      "Wardrobe",
+      "Bookshelf",
+      "TV Stand",
+      "Coffee Table",
+      "Study Desk",
+      "Curtains",
+      "Floor Rug",
+      "Wall Mirror",
+      "Storage Box",
+      "Shoe Rack",
+      "Laundry Basket",
+      "Pillow Set",
+      "Bedsheet Set",
+      "Blanket",
+      "Duvet",
+      "Table Lamp",
+      "Floor Lamp",
+      "Wall Clock"
+    ]
+  },
+
+  {
+    category: "Appliances",
+    icon: "🧺",
+    search: "home,appliance",
+    items: [
+      "Refrigerator",
+      "Washing Machine",
+      "Microwave Oven",
+      "Blender",
+      "Air Fryer",
+      "Electric Cooker",
+      "Gas Cooker",
+      "Rice Cooker",
+      "Toaster",
+      "Sandwich Maker",
+      "Electric Iron",
+      "Standing Fan",
+      "Table Fan",
+      "Air Conditioner",
+      "Water Dispenser",
+      "Dishwasher",
+      "Freezer",
+      "Food Processor",
+      "Juicer",
+      "Coffee Maker",
+      "Electric Grill",
+      "Slow Cooker",
+      "Vacuum Cleaner",
+      "Steam Mop",
+      "Hand Mixer"
+    ]
+  },
+
+  {
+    category: "Groceries",
+    icon: "🛒",
+    search: "groceries,food",
+    items: [
+      "Rice 5kg",
+      "Rice 10kg",
+      "Beans 1kg",
+      "Spaghetti Pack",
+      "Macaroni Pack",
+      "Instant Noodles",
+      "Cooking Oil 1L",
+      "Cooking Oil 2L",
+      "Chocolate Drink",
+      "Corn Flakes",
+      "Sugar 1kg",
+      "Salt 1kg",
+      "Tomato Paste",
+      "Biscuit Pack",
+      "Tea Pack",
+      "Milk Powder",
+      "Oats Pack",
+      "Peanut Butter",
+      "Mayonnaise",
+      "Ketchup",
+      "Breakfast Cereal",
+      "Bottled Water",
+      "Fruit Juice",
+      "Chocolate Bar",
+      "Canned Sardines"
+    ]
+  },
+
+  {
+    category: "Gaming",
+    icon: "🎮",
+    search: "gaming,video-game",
+    items: [
+      "Gaming Console",
+      "Game Controller",
+      "Wireless Controller",
+      "Gaming Headset",
+      "Gaming Keyboard",
+      "Gaming Mouse",
+      "Gaming Monitor",
+      "Gaming Chair",
+      "Console Charging Dock",
+      "Console Carry Case",
+      "Racing Wheel",
+      "Gaming Microphone",
+      "VR Headset",
+      "Game Storage Drive",
+      "Controller Grip",
+      "Gaming Desk",
+      "Gaming Mouse Pad",
+      "RGB Light Strip",
+      "Game Capture Card",
+      "Portable Gaming Device",
+      "Gamepad Holder",
+      "Console Cooling Fan",
+      "Gaming Speakers",
+      "Arcade Stick",
+      "Gaming Cable"
+    ]
+  },
+
+  {
+    category: "Accessories",
+    icon: "⌚",
+    search: "fashion,accessories",
+    items: [
+      "Wrist Watch",
+      "Smart Watch",
+      "Leather Watch",
+      "Digital Watch",
+      "Necklace",
+      "Pendant Necklace",
+      "Bracelet",
+      "Bangle",
+      "Earrings",
+      "Fashion Ring",
+      "Sunglasses",
+      "Reading Glasses",
+      "Handbag",
+      "Shoulder Bag",
+      "Crossbody Bag",
+      "Backpack",
+      "School Bag",
+      "Travel Backpack",
+      "Wallet",
+      "Card Holder",
+      "Leather Belt",
+      "Baseball Cap",
+      "Fashion Hat",
+      "Scarf",
+      "Travel Bag"
+    ]
+  },
+
+  {
+    category: "Baby",
+    icon: "🍼",
+    search: "baby,children",
+    items: [
+      "Baby Stroller",
+      "Baby Carrier",
+      "Baby Feeding Bottle",
+      "Baby Clothes Set",
+      "Baby Shoes",
+      "Baby Blanket",
+      "Baby Bath Set",
+      "Baby Diapers",
+      "Baby Wipes",
+      "Baby Shampoo",
+      "Baby Lotion",
+      "Baby Powder",
+      "Baby Bib",
+      "Baby Feeding Set",
+      "Baby Monitor",
+      "Baby Walker",
+      "Baby Rocking Chair",
+      "Baby Changing Mat",
+      "Baby Pillow",
+      "Baby Sleeping Bag",
+      "Baby Toy Set",
+      "Baby Bath Tub",
+      "Baby Safety Gate",
+      "Baby Bottle Warmer",
+      "Baby Backpack"
+    ]
+  },
+
+  {
+    category: "Sports",
+    icon: "⚽",
+    search: "sports,fitness",
+    items: [
+      "Football",
+      "Basketball",
+      "Tennis Racket",
+      "Badminton Racket",
+      "Volleyball",
+      "Football Jersey",
+      "Sports Shorts",
+      "Running Shirt",
+      "Sports Trousers",
+      "Gym Gloves",
+      "Yoga Mat",
+      "Skipping Rope",
+      "Dumbbell Set",
+      "Resistance Bands",
+      "Exercise Bike",
+      "Treadmill",
+      "Punching Bag",
+      "Boxing Gloves",
+      "Sports Water Bottle",
+      "Sports Bag",
+      "Football Boots",
+      "Training Cones",
+      "Goal Net",
+      "Tennis Balls",
+      "Sports Watch"
+    ]
+  },
+
+  {
+    category: "Books",
+    icon: "📚",
+    search: "books,book",
+    items: [
+      "Novel Book",
+      "Business Book",
+      "Law Book",
+      "History Book",
+      "Science Book",
+      "Mathematics Book",
+      "English Grammar Book",
+      "Dictionary",
+      "Study Guide",
+      "Exam Practice Book",
+      "Children's Story Book",
+      "Cookbook",
+      "Biography Book",
+      "Self Development Book",
+      "Leadership Book",
+      "Finance Book",
+      "Technology Book",
+      "Computer Science Book",
+      "Programming Book",
+      "Christian Book",
+      "Poetry Book",
+      "Notebook Journal",
+      "Sketch Book",
+      "Activity Book",
+      "Workbook"
+    ]
+  },
+
+  {
+    category: "Office",
+    icon: "🖨️",
+    search: "office,stationery",
+    items: [
+      "Laser Printer",
+      "Inkjet Printer",
+      "Printer Ink",
+      "Printer Paper",
+      "A4 Paper Pack",
+      "Stapler",
+      "Staple Pins",
+      "Office Scissors",
+      "Desk Organizer",
+      "File Folder",
+      "Document Folder",
+      "Calculator",
+      "Whiteboard",
+      "Whiteboard Marker",
+      "Office Desk",
+      "Office Chair",
+      "Desk Lamp",
+      "Paper Shredder",
+      "Laminator",
+      "Paper Cutter",
+      "Sticky Notes",
+      "Envelope Pack",
+      "Pen Set",
+      "Pencil Set",
+      "USB Flash Drive"
+    ]
+  }
+];
+
+/* =====================================================
+   PRICE RANGES
+   ===================================================== */
+
+const priceRanges = {
+  "Phones & Tablets": [25000, 750000],
+  "Computing": [45000, 1500000],
+  "Electronics": [5000, 450000],
+  "TV & Audio": [20000, 1800000],
+  "Fashion": [5000, 250000],
+  "Shoes": [7000, 300000],
+  "Beauty": [3000, 180000],
+  "Home": [10000, 1200000],
+  "Appliances": [15000, 900000],
+  "Groceries": [1000, 100000],
+  "Gaming": [10000, 900000],
+  "Accessories": [3000, 250000],
+  "Baby": [3000, 180000],
+  "Sports": [5000, 350000],
+  "Books": [2000, 90000],
+  "Office": [3000, 500000]
+};
+
+/* =====================================================
+   IMAGE GENERATOR
+   ===================================================== */
+
+function productImage(
+  search,
+  productName,
+  number
+) {
+  const keywords =
+    encodeURIComponent(
+      `${search},${productName}`
+    );
+
+  return (
+    `https://loremflickr.com/1200/900/${keywords}` +
+    `?lock=${number}`
+  );
+}
+
+/* =====================================================
+   PRICE GENERATOR
+   ===================================================== */
+
+function productPrice(
+  category,
+  number
+) {
+  const range =
+    priceRanges[category] ||
+    [5000, 500000];
+
+  const min = range[0];
+  const max = range[1];
+
+  const value =
+    min +
+    ((number * 7919) %
+      (max - min));
+
+  return Math.max(
+    1000,
+    Math.round(value / 1000) * 1000
+  );
+}
+
+function oldPrice(
+  price,
+  number
+) {
+  if (number % 3 === 0) {
+    return (
+      Math.round(
+        (price * 1.18) / 1000
+      ) * 1000
+    );
   }
 
-  if (index % 3 === 1) {
-    return Math.round((price * 1.12) / 1000) * 1000;
+  if (number % 3 === 1) {
+    return (
+      Math.round(
+        (price * 1.12) / 1000
+      ) * 1000
+    );
   }
 
   return 0;
 }
 
-/*
-  Make sure database arrays exist.
-*/
-if (!Array.isArray(db.products)) db.products = [];
-if (!Array.isArray(db.categories)) db.categories = [];
-
-/*
-  Add all store categories without deleting existing ones.
-*/
-for (const [name, icon] of catalogueCategories) {
-  if (!db.categories.some(c => c.name === name)) {
-    db.categories.push({
-      name,
-      icon
-    });
-  }
-}
-
-/*
-  Create exactly 500 catalogue IDs:
-  P1 ... P500
-
-  Existing products are NOT deleted.
-  If P1-P9 already exist from your old store,
-  the missing products are simply added.
-*/
-const existingIds = new Set(
-  db.products.map(p => p.id)
-);
+/* =====================================================
+   CREATE 500 PRODUCTS
+   ===================================================== */
 
 const generatedProducts = [];
 
-for (let c = 0; c < catalogueCategories.length; c++) {
-  const [
-    category,
-    icon,
-    picture,
-    minPrice,
-    maxPrice
-  ] = catalogueCategories[c];
+let productNumber = 1;
 
-  for (let i = 0; i < productTypes.length; i++) {
-    const number =
-      c * productTypes.length + i + 1;
+for (
+  const category of catalogue
+) {
+  for (
+    const name of category.items
+  ) {
+    if (productNumber > 400) {
+      break;
+    }
 
-    if (number > 400) continue;
-
-    const type = productTypes[i];
-    const item = productNames[i];
-
-    const id = "P" + number;
-
-    const name =
-      type +
-      " " +
-      category.replace(" & ", " ") +
-      " " +
-      item;
-
-    const price = makePrice(
-      minPrice,
-      maxPrice,
-      number
-    );
-
-    const oldPrice = makeOldPrice(
-      price,
-      number
-    );
+    const price =
+      productPrice(
+        category.category,
+        productNumber
+      );
 
     generatedProducts.push({
-      id,
+      id:
+        "P" +
+        productNumber,
+
       name,
-      category,
+
+      category:
+        category.category,
+
       price,
-      oldPrice,
-      image: pics[picture],
-      rating: Number(
-        (4.2 + ((number % 8) / 10)).toFixed(1)
-      ),
-      stock: 10 + (number % 41),
-      deal: number <= 80 || number % 7 === 0,
+
+      oldPrice:
+        oldPrice(
+          price,
+          productNumber
+        ),
+
+      image:
+        productImage(
+          category.search,
+          name,
+          productNumber
+        ),
+
+      rating:
+        Number(
+          (
+            4.2 +
+            ((productNumber % 8) /
+              10)
+          ).toFixed(1)
+        ),
+
+      stock:
+        10 +
+        (productNumber % 41),
+
+      deal:
+        productNumber <= 80 ||
+        productNumber % 7 === 0,
+
       description:
-        "Quality " +
-        category.toLowerCase() +
-        " product from Good News Shopping."
+        `Quality ${name.toLowerCase()} from Good News Shopping.`
+    });
+
+    productNumber++;
+  }
+}
+
+/* =====================================================
+   100 EXTRA PRODUCTS
+   ===================================================== */
+
+const extraNames = [
+  "Premium Phone Bundle",
+  "Premium Tablet Bundle",
+  "Premium Laptop Bundle",
+  "Premium Speaker Bundle",
+  "Premium Headphone Bundle",
+  "Premium TV Bundle",
+  "Premium Fashion Bundle",
+  "Premium Shoe Bundle",
+  "Premium Beauty Bundle",
+  "Premium Home Bundle",
+  "Premium Appliance Bundle",
+  "Premium Grocery Bundle",
+  "Premium Gaming Bundle",
+  "Premium Watch Bundle",
+  "Premium Baby Bundle",
+  "Premium Sports Bundle",
+  "Premium Book Bundle",
+  "Premium Office Bundle",
+  "Family Shopping Bundle",
+  "Student Shopping Bundle",
+  "Business Shopping Bundle",
+  "Travel Shopping Bundle",
+  "Home Starter Bundle",
+  "Office Starter Bundle",
+  "Gaming Starter Bundle"
+];
+
+const extraCategories = [
+  "Phones & Tablets",
+  "Computing",
+  "Electronics",
+  "TV & Audio",
+  "Fashion",
+  "Shoes",
+  "Beauty",
+  "Home",
+  "Appliances",
+  "Groceries",
+  "Gaming",
+  "Accessories",
+  "Baby",
+  "Sports",
+  "Books",
+  "Office"
+];
+
+for (let i = 0; i < 100; i++) {
+  const number =
+    401 + i;
+
+  const category =
+    extraCategories[
+      i %
+        extraCategories.length
+    ];
+
+  const name =
+    extraNames[
+      i %
+        extraNames.length
+    ] +
+    " " +
+    (Math.floor(i / 25) + 1);
+
+  const price =
+    productPrice(
+      category,
+      number
+    );
+
+  generatedProducts.push({
+    id:
+      "P" +
+      number,
+
+    name,
+
+    category,
+
+    price,
+
+    oldPrice:
+      oldPrice(
+        price,
+        number
+      ),
+
+    image:
+      productImage(
+        catalogue.find(
+          x =>
+            x.category ===
+            category
+        ).search,
+        name,
+        number
+      ),
+
+    rating:
+      Number(
+        (
+          4.3 +
+          ((number % 7) /
+            10)
+        ).toFixed(1)
+      ),
+
+    stock:
+      15 +
+      (i % 35),
+
+    deal:
+      i % 4 === 0,
+
+    description:
+      `Quality ${name.toLowerCase()} from Good News Shopping.`
+  });
+}
+
+/* =====================================================
+   ADD CATEGORIES
+   ===================================================== */
+
+for (
+  const category of catalogue
+) {
+  if (
+    !db.categories.some(
+      c =>
+        c.name ===
+        category.category
+    )
+  ) {
+    db.categories.push({
+      name:
+        category.category,
+      icon:
+        category.icon
     });
   }
 }
 
-/*
-  Add another 100 products to reach 500.
-*/
-for (let i = 0; i < 100; i++) {
-  const source =
-    generatedProducts[i % generatedProducts.length];
-
-  const number = 401 + i;
-  const id = "P" + number;
-
-  generatedProducts.push({
-    id,
-    name: source.name + " Plus",
-    category: source.category,
-    price: Math.max(
-      1000,
-      Math.round(
-        (source.price * (1.05 + (i % 5) / 100)) / 1000
-      ) * 1000
-    ),
-    oldPrice:
-      i % 2 === 0
-        ? Math.round(
-            (source.price * 1.18) / 1000
-          ) * 1000
-        : 0,
-    image: source.image,
-    rating: Number(
-      (4.3 + ((number % 7) / 10)).toFixed(1)
-    ),
-    stock: 15 + (i % 35),
-    deal: i % 4 === 0,
-    description:
-      "Quality " +
-      source.category.toLowerCase() +
-      " product from Good News Shopping."
-  });
-}
+/* =====================================================
+   REPLACE OLD GENERATED P1-P500
+   ===================================================== */
 
 /*
-  Add only products that do not already exist.
+   Products created by the old catalogue used IDs
+   such as P1, P2, P3 ... P500.
+
+   Remove only those generated products.
+
+   Admin-created products have IDs such as
+   P-ABC123 and are NOT removed.
 */
-let productsAdded = 0;
 
-for (const product of generatedProducts) {
-  if (!existingIds.has(product.id)) {
-    db.products.push(product);
-    productsAdded++;
-  }
-}
-
-if (productsAdded > 0) {
-  save();
-  console.log(
-    `Good News Shopping catalogue: added ${productsAdded} products. Total: ${db.products.length}`
+db.products =
+  db.products.filter(
+    product =>
+      !/^P\d+$/.test(
+        String(product.id)
+      )
   );
-}
 
-if (!db.categories.length) {
-  db.categories = catalogueCategories.map(x => ({
-    name: x[0],
-    icon: x[1]
-  }));
+/*
+   Put the new 500 products into the database.
+*/
 
-  save();
-}
+db.products = [
+  ...generatedProducts,
+  ...db.products
+];
 
-/* =========================
-   AUTH / HELPERS
-   ========================= */
+save();
 
-function uid(p) {
+console.log(
+  `Good News Shopping now has ${db.products.length} products.`
+);
+
+/* =====================================================
+   HELPERS
+   ===================================================== */
+
+function uid(prefix) {
   return (
-    p +
+    prefix +
     "-" +
     crypto
       .randomBytes(5)
@@ -335,22 +969,23 @@ function uid(p) {
   );
 }
 
-function safe(u) {
+function safe(user) {
   return {
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    createdAt: u.createdAt
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    createdAt:
+      user.createdAt
   };
 }
 
-function tok(u) {
+function tok(user) {
   return jwt.sign(
     {
-      id: u.id,
-      email: u.email,
-      role: u.role
+      id: user.id,
+      email: user.email,
+      role: user.role
     },
     SECRET,
     {
@@ -359,31 +994,50 @@ function tok(u) {
   );
 }
 
-function auth(req, res, next) {
-  const h = req.headers.authorization || "";
+function auth(
+  req,
+  res,
+  next
+) {
+  const header =
+    req.headers.authorization ||
+    "";
 
   try {
-    req.user = jwt.verify(
-      h.replace("Bearer ", ""),
-      SECRET
-    );
+    req.user =
+      jwt.verify(
+        header.replace(
+          "Bearer ",
+          ""
+        ),
+        SECRET
+      );
 
     next();
   } catch {
     res
       .status(401)
       .json({
-        message: "Please sign in."
+        message:
+          "Please sign in."
       });
   }
 }
 
-function admin(req, res, next) {
-  if (req.user.role !== "admin") {
+function admin(
+  req,
+  res,
+  next
+) {
+  if (
+    req.user.role !==
+    "admin"
+  ) {
     return res
       .status(403)
       .json({
-        message: "Admin only."
+        message:
+          "Admin only."
       });
   }
 
@@ -449,62 +1103,70 @@ function cleanProduct(
         false
     ),
 
-    description: String(
-      body.description ??
-        existing.description ??
-        ""
-    ).trim()
+    description:
+      String(
+        body.description ??
+          existing.description ??
+          ""
+      ).trim()
   };
 }
 
-/* =========================
-   STATIC WEBSITE
-   ========================= */
+/* =====================================================
+   WEBSITE
+   ===================================================== */
 
 app.use(
   express.static(
-    path.join(__dirname, "public")
+    path.join(
+      __dirname,
+      "public"
+    )
   )
 );
 
-/* =========================
-   PRODUCTS
-   ========================= */
+/* =====================================================
+   PRODUCTS API
+   ===================================================== */
 
 app.get(
   "/api/products",
-  (q, r) =>
-    r.json({
-      products: db.products,
-      categories: db.categories
-    })
+  (req, res) => {
+    res.json({
+      products:
+        db.products,
+      categories:
+        db.categories
+    });
+  }
 );
 
-/* =========================
-   AUTH
-   ========================= */
+/* =====================================================
+   REGISTER
+   ===================================================== */
 
 app.post(
   "/api/auth/register",
-  async (q, r) => {
+  async (req, res) => {
     const {
       name,
       email,
       password
-    } = q.body || {};
+    } = req.body || {};
 
-    const e = String(
-      email || ""
-    )
-      .trim()
-      .toLowerCase();
+    const e =
+      String(
+        email || ""
+      )
+        .trim()
+        .toLowerCase();
 
     if (
       !name ||
       !e ||
       !password
     ) {
-      return r
+      return res
         .status(400)
         .json({
           message:
@@ -512,8 +1174,11 @@ app.post(
         });
     }
 
-    if (password.length < 6) {
-      return r
+    if (
+      password.length <
+      6
+    ) {
+      return res
         .status(400)
         .json({
           message:
@@ -523,10 +1188,11 @@ app.post(
 
     if (
       db.users.some(
-        u => u.email === e
+        u =>
+          u.email === e
       )
     ) {
-      return r
+      return res
         .status(409)
         .json({
           message:
@@ -534,9 +1200,12 @@ app.post(
         });
     }
 
-    const u = {
+    const user = {
       id: uid("USR"),
-      name: String(name).trim(),
+      name:
+        String(
+          name
+        ).trim(),
       email: e,
       passwordHash:
         await bcrypt.hash(
@@ -548,51 +1217,67 @@ app.post(
         new Date().toISOString()
     };
 
-    db.users.push(u);
+    db.users.push(
+      user
+    );
+
     save();
 
-    r.json({
-      user: safe(u),
-      token: tok(u)
+    res.json({
+      user:
+        safe(user),
+      token:
+        tok(user)
     });
   }
 );
 
+/* =====================================================
+   LOGIN
+   ===================================================== */
+
 app.post(
   "/api/auth/login",
-  async (q, r) => {
+  async (req, res) => {
     const {
       email,
       password
-    } = q.body || {};
+    } = req.body || {};
 
-    const e = String(
-      email || ""
-    )
-      .trim()
-      .toLowerCase();
+    const e =
+      String(
+        email || ""
+      )
+        .trim()
+        .toLowerCase();
 
-    let u = db.users.find(
-      x => x.email === e
-    );
+    let user =
+      db.users.find(
+        x =>
+          x.email === e
+      );
 
     if (
-      !u &&
-      e === ADMIN_EMAIL &&
-      password === ADMIN_PASSWORD
+      !user &&
+      e ===
+        ADMIN_EMAIL &&
+      password ===
+        ADMIN_PASSWORD
     ) {
-      u = {
+      user = {
         id: "ADMIN",
-        name: "Good News Admin",
-        email: ADMIN_EMAIL,
+        name:
+          "Good News Admin",
+        email:
+          ADMIN_EMAIL,
         role: "admin",
         createdAt:
           new Date().toISOString()
       };
     }
 
-    if (!u) {
-      return r
+    if (!user) {
+      return res
         .status(401)
         .json({
           message:
@@ -601,13 +1286,16 @@ app.post(
     }
 
     if (
-      u.role !== "admin" &&
-      !(await bcrypt.compare(
-        password,
-        u.passwordHash
-      ))
+      user.role !==
+        "admin" &&
+      !(
+        await bcrypt.compare(
+          password,
+          user.passwordHash
+        )
+      )
     ) {
-      return r
+      return res
         .status(401)
         .json({
           message:
@@ -615,102 +1303,123 @@ app.post(
         });
     }
 
-    r.json({
-      user: safe(u),
-      token: tok(u)
+    res.json({
+      user:
+        safe(user),
+      token:
+        tok(user)
     });
   }
 );
 
-/* =========================
-   CUSTOMER ORDERS
-   ========================= */
+/* =====================================================
+   MY ORDERS
+   ===================================================== */
 
 app.get(
   "/api/orders/my",
   auth,
-  (q, r) =>
-    r.json({
-      orders: db.orders
-        .filter(
-          o =>
-            o.userId ===
-            q.user.id
-        )
-        .reverse()
-    })
+  (req, res) => {
+    res.json({
+      orders:
+        db.orders
+          .filter(
+            order =>
+              order.userId ===
+              req.user.id
+          )
+          .reverse()
+    });
+  }
 );
 
-/* =========================
-   WHATSAPP NOTIFICATION
-   ========================= */
+/* =====================================================
+   WHATSAPP
+   ===================================================== */
 
-async function notify(o) {
+async function notify(order) {
   const token =
-    process.env.WHATSAPP_ACCESS_TOKEN;
+    process.env
+      .WHATSAPP_ACCESS_TOKEN;
 
   const id =
-    process.env.WHATSAPP_PHONE_NUMBER_ID;
+    process.env
+      .WHATSAPP_PHONE_NUMBER_ID;
 
   const to =
-    process.env.ADMIN_WHATSAPP;
+    process.env
+      .ADMIN_WHATSAPP;
 
-  if (!token || !id || !to) {
+  if (
+    !token ||
+    !id ||
+    !to
+  ) {
     console.log(
       "WhatsApp Cloud API not configured for",
-      o.orderNumber
+      order.orderNumber
     );
 
     return;
   }
 
   const body =
-    `New order ${o.orderNumber}\n` +
-    `Customer: ${o.customer.name}\n` +
-    `Phone: ${o.customer.phone}\n` +
-    `Total: ₦${o.total.toLocaleString()}`;
+    `New order ${order.orderNumber}\n` +
+    `Customer: ${order.customer.name}\n` +
+    `Phone: ${order.customer.phone}\n` +
+    `Total: ₦${order.total.toLocaleString()}`;
 
   try {
-    const x = await fetch(
-      `https://graph.facebook.com/v23.0/${id}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization:
-            `Bearer ${token}`,
-          "Content-Type":
-            "application/json"
-        },
-        body: JSON.stringify({
-          messaging_product:
-            "whatsapp",
-          to,
-          type: "text",
-          text: {
-            body
-          }
-        })
-      }
-    );
+    const response =
+      await fetch(
+        `https://graph.facebook.com/v23.0/${id}/messages`,
+        {
+          method:
+            "POST",
+
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify({
+              messaging_product:
+                "whatsapp",
+
+              to,
+
+              type:
+                "text",
+
+              text: {
+                body
+              }
+            })
+        }
+      );
 
     console.log(
-      await x.json()
+      await response.json()
     );
-  } catch (e) {
+  } catch (error) {
     console.error(
-      e.message
+      error.message
     );
   }
 }
 
-/* =========================
+/* =====================================================
    CREATE ORDER
-   ========================= */
+   ===================================================== */
 
 app.post(
   "/api/orders",
   auth,
-  async (q, r) => {
+  async (req, res) => {
     const {
       name,
       phone,
@@ -719,7 +1428,7 @@ app.post(
       address,
       paymentMethod,
       items
-    } = q.body || {};
+    } = req.body || {};
 
     if (
       !name ||
@@ -729,7 +1438,7 @@ app.post(
       !address ||
       !items?.length
     ) {
-      return r
+      return res
         .status(400)
         .json({
           message:
@@ -738,26 +1447,33 @@ app.post(
     }
 
     let total = 0;
-    const out = [];
 
-    for (const i of items) {
-      const p =
+    const outputItems = [];
+
+    for (
+      const item of items
+    ) {
+      const product =
         db.products.find(
-          x =>
-            x.id ===
-            i.productId
+          p =>
+            p.id ===
+            item.productId
         );
 
-      const qty = Math.max(
-        1,
-        Number(i.qty)
-      );
+      const quantity =
+        Math.max(
+          1,
+          Number(
+            item.qty
+          )
+        );
 
       if (
-        !p ||
-        p.stock < qty
+        !product ||
+        product.stock <
+          quantity
       ) {
-        return r
+        return res
           .status(400)
           .json({
             message:
@@ -765,17 +1481,28 @@ app.post(
           });
       }
 
-      p.stock -= qty;
+      product.stock -=
+        quantity;
 
       total +=
-        p.price * qty;
+        product.price *
+        quantity;
 
-      out.push({
-        productId: p.id,
-        name: p.name,
-        price: p.price,
-        qty,
-        image: p.image
+      outputItems.push({
+        productId:
+          product.id,
+
+        name:
+          product.name,
+
+        price:
+          product.price,
+
+        qty:
+          quantity,
+
+        image:
+          product.image
       });
     }
 
@@ -784,7 +1511,7 @@ app.post(
         ? 0
         : 2500;
 
-    const o = {
+    const order = {
       id: uid("ORD"),
 
       orderNumber:
@@ -796,7 +1523,7 @@ app.post(
         ),
 
       userId:
-        q.user.id,
+        req.user.id,
 
       customer: {
         name,
@@ -808,16 +1535,20 @@ app.post(
 
       paymentMethod,
 
-      items: out,
+      items:
+        outputItems,
 
-      subtotal: total,
+      subtotal:
+        total,
 
       delivery,
 
       total:
-        total + delivery,
+        total +
+        delivery,
 
-      status: "placed",
+      status:
+        "placed",
 
       createdAt:
         new Date().toISOString(),
@@ -826,51 +1557,58 @@ app.post(
         new Date().toISOString()
     };
 
-    db.orders.push(o);
+    db.orders.push(
+      order
+    );
 
     save();
 
-    notify(o);
+    notify(order);
 
-    r.status(201).json({
-      order: o
-    });
+    res
+      .status(201)
+      .json({
+        order
+      });
   }
 );
 
-/* =========================
+/* =====================================================
    ADMIN PRODUCTS
-   ========================= */
+   ===================================================== */
 
 app.get(
   "/api/admin/products",
   auth,
   admin,
-  (q, r) =>
-    r.json({
-      products: db.products,
+  (req, res) => {
+    res.json({
+      products:
+        db.products,
+
       categories:
         db.categories
-    })
+    });
+  }
 );
 
 app.post(
   "/api/admin/products",
   auth,
   admin,
-  (q, r) => {
-    const p =
+  (req, res) => {
+    const product =
       cleanProduct(
-        q.body || {}
+        req.body || {}
       );
 
     if (
-      !p.name ||
-      !p.category ||
-      !p.price ||
-      !p.image
+      !product.name ||
+      !product.category ||
+      !product.price ||
+      !product.image
     ) {
-      return r
+      return res
         .status(400)
         .json({
           message:
@@ -882,29 +1620,34 @@ app.post(
       !db.categories.some(
         c =>
           c.name ===
-          p.category
+          product.category
       )
     ) {
       db.categories.push({
-        name: p.category,
-        icon: "🛍️"
+        name:
+          product.category,
+        icon:
+          "🛍️"
       });
     }
 
-    const product = {
+    const newProduct = {
       id: uid("P"),
-      ...p
+      ...product
     };
 
     db.products.unshift(
-      product
+      newProduct
     );
 
     save();
 
-    r.status(201).json({
-      product
-    });
+    res
+      .status(201)
+      .json({
+        product:
+          newProduct
+      });
   }
 );
 
@@ -912,16 +1655,16 @@ app.patch(
   "/api/admin/products/:id",
   auth,
   admin,
-  (q, r) => {
-    const i =
+  (req, res) => {
+    const index =
       db.products.findIndex(
-        x =>
-          x.id ===
-          q.params.id
+        p =>
+          p.id ===
+          req.params.id
       );
 
-    if (i < 0) {
-      return r
+    if (index < 0) {
+      return res
         .status(404)
         .json({
           message:
@@ -929,19 +1672,19 @@ app.patch(
         });
     }
 
-    const p =
+    const product =
       cleanProduct(
-        q.body || {},
-        db.products[i]
+        req.body || {},
+        db.products[index]
       );
 
     if (
-      !p.name ||
-      !p.category ||
-      !p.price ||
-      !p.image
+      !product.name ||
+      !product.category ||
+      !product.price ||
+      !product.image
     ) {
-      return r
+      return res
         .status(400)
         .json({
           message:
@@ -953,25 +1696,27 @@ app.patch(
       !db.categories.some(
         c =>
           c.name ===
-          p.category
+          product.category
       )
     ) {
       db.categories.push({
-        name: p.category,
-        icon: "🛍️"
+        name:
+          product.category,
+        icon:
+          "🛍️"
       });
     }
 
-    db.products[i] = {
-      ...db.products[i],
-      ...p
+    db.products[index] = {
+      ...db.products[index],
+      ...product
     };
 
     save();
 
-    r.json({
+    res.json({
       product:
-        db.products[i]
+        db.products[index]
     });
   }
 );
@@ -980,16 +1725,16 @@ app.delete(
   "/api/admin/products/:id",
   auth,
   admin,
-  (q, r) => {
-    const i =
+  (req, res) => {
+    const index =
       db.products.findIndex(
-        x =>
-          x.id ===
-          q.params.id
+        p =>
+          p.id ===
+          req.params.id
       );
 
-    if (i < 0) {
-      return r
+    if (index < 0) {
+      return res
         .status(404)
         .json({
           message:
@@ -997,50 +1742,52 @@ app.delete(
         });
     }
 
-    const [removed] =
+    const removed =
       db.products.splice(
-        i,
+        index,
         1
-      );
+      )[0];
 
     save();
 
-    r.json({
-      product: removed
+    res.json({
+      product:
+        removed
     });
   }
 );
 
-/* =========================
+/* =====================================================
    ADMIN ORDERS
-   ========================= */
+   ===================================================== */
 
 app.get(
   "/api/admin/orders",
   auth,
   admin,
-  (q, r) =>
-    r.json({
+  (req, res) => {
+    res.json({
       orders: [
         ...db.orders
       ].reverse()
-    })
+    });
+  }
 );
 
 app.patch(
   "/api/admin/orders/:id",
   auth,
   admin,
-  (q, r) => {
-    const o =
+  (req, res) => {
+    const order =
       db.orders.find(
-        x =>
-          x.id ===
-          q.params.id
+        o =>
+          o.id ===
+          req.params.id
       );
 
-    if (!o) {
-      return r
+    if (!order) {
+      return res
         .status(404)
         .json({
           message:
@@ -1048,70 +1795,79 @@ app.patch(
         });
     }
 
-    o.status =
-      q.body.status;
+    order.status =
+      req.body.status;
 
-    o.updatedAt =
+    order.updatedAt =
       new Date().toISOString();
 
     save();
 
-    r.json({
-      order: o
+    res.json({
+      order
     });
   }
 );
 
-/* =========================
+/* =====================================================
    HEALTH CHECK
-   ========================= */
+   ===================================================== */
 
 app.get(
   "/api/health",
-  (q, r) =>
-    r.json({
-      ok: true
-    })
+  (req, res) => {
+    res.json({
+      ok: true,
+      products:
+        db.products.length
+    });
+  }
 );
 
-/* =========================
+/* =====================================================
    ADMIN PAGE
-   ========================= */
+   ===================================================== */
 
 app.get(
   "/admin",
-  (q, r) =>
-    r.sendFile(
+  (req, res) => {
+    res.sendFile(
       path.join(
         __dirname,
-        "public/admin/index.html"
+        "public",
+        "admin",
+        "index.html"
       )
-    )
+    );
+  }
 );
 
-/* =========================
+/* =====================================================
    WEBSITE FALLBACK
-   ========================= */
+   ===================================================== */
 
 app.get(
   "*",
-  (q, r) =>
-    r.sendFile(
+  (req, res) => {
+    res.sendFile(
       path.join(
         __dirname,
-        "public/index.html"
+        "public",
+        "index.html"
       )
-    )
+    );
+  }
 );
 
-/* =========================
+/* =====================================================
    START SERVER
-   ========================= */
+   ===================================================== */
 
 app.listen(
   PORT,
-  () =>
+  () => {
     console.log(
-      `Good News Shopping: http://localhost:${PORT}`
-    )
+      `Good News Shopping running on port ${PORT}`
+    );
+  }
 );
