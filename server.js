@@ -1001,76 +1001,108 @@ async function collectPhotos(
   return picked;
 }
 
+
 /* =========================================================
    BUILD PRODUCT CATALOGUE
 ========================================================= */
 
 async function ensureCatalog() {
 
-  const target =
-    build400Products();
+  const target = build400Products();
 
   /*
-    Keep any products manually added
-    through the admin system.
+    IMPORTANT:
+    P1 - P400 are the permanent original catalogue.
+
+    Any product added later through the admin system
+    has a different ID, so it will be preserved.
   */
 
-  const custom =
-    db.products.filter(
-      p =>
-        !/^P([1-9]\d{0,2}|400)$/.test(
-          String(p.id)
-        )
-    );
+  const originalIds = new Set(
+    target.map(p => p.id)
+  );
 
-  const oldProducts =
-    db.products || [];
-
-  db.products =
-    target
-      .map(fresh => {
-
-        const old =
-          oldProducts.find(
-            p => p.id === fresh.id
-          );
-
-        if (old) {
-
-          return {
-            ...fresh,
-            ...old,
-            name: fresh.name,
-            category: fresh.category,
-            imageQuery:
-              fresh.imageQuery
-          };
-
-        }
-
-        return fresh;
-
-      })
-      .concat(custom);
-
-  db.categories =
-    CATEGORY_SEED;
-
-  const generated =
-    db.products.filter(
-      p =>
-        /^P(?:[1-9]\d{0,2}|400)$/.test(
-          String(p.id)
-        )
-    );
+  const existingProducts = Array.isArray(db.products)
+    ? db.products
+    : [];
 
   /*
-    If all 400 already have images,
-    DON'T call Pexels again.
+    Keep every product that is NOT one of the
+    original P1-P400 products.
+
+    These are products added later by the admin.
   */
+
+  const customProducts = existingProducts.filter(
+    p => !originalIds.has(String(p.id))
+  );
+
+  /*
+    Rebuild/update P1-P400 while preserving their
+    saved Pexels images and other saved information.
+  */
+
+  db.products = target.map(fresh => {
+
+    const old = existingProducts.find(
+      p => String(p.id) === String(fresh.id)
+    );
+
+    if (!old) {
+      return fresh;
+    }
+
+    return {
+      ...fresh,
+      ...old,
+
+      /*
+        These fields always remain controlled by
+        the permanent catalogue.
+      */
+
+      id: fresh.id,
+      name: fresh.name,
+      category: fresh.category,
+      imageQuery: fresh.imageQuery
+    };
+
+  }).concat(customProducts);
+
+  /*
+    Keep the original categories AND any categories
+    created later through the admin system.
+  */
+
+  const oldCategories = Array.isArray(db.categories)
+    ? db.categories
+    : [];
+
+  const categoryMap = new Map();
+
+  CATEGORY_SEED.forEach(c => {
+    categoryMap.set(c.name, c);
+  });
+
+  oldCategories.forEach(c => {
+    if (c && c.name) {
+      categoryMap.set(c.name, c);
+    }
+  });
+
+  db.categories = Array.from(categoryMap.values());
+
+  /*
+    Check whether all original 400 products already
+    have their Pexels images saved.
+  */
+
+  const generated = db.products.filter(
+    p => originalIds.has(String(p.id))
+  );
 
   const complete =
-    generated.length >= 400 &&
+    generated.length === 400 &&
     generated.every(
       p =>
         p.pexelsPhotoId &&
@@ -1082,15 +1114,20 @@ async function ensureCatalog() {
     save();
 
     console.log(
-      "Good News Shopping: 400 product images already saved."
+      "Good News Shopping: 400 permanent products are ready."
+    );
+
+    console.log(
+      "Additional products saved:",
+      customProducts.length
     );
 
     return;
   }
 
   /*
-    If the API key is missing,
-    keep the website running.
+    If the Pexels key is missing, don't crash the
+    entire website.
   */
 
   if (!PEXELS_API_KEY) {
@@ -1108,53 +1145,47 @@ async function ensureCatalog() {
     "Starting Pexels image setup for 400 products..."
   );
 
-  const usedIds =
-    new Set();
+  /*
+    Remember every Pexels photo already being used.
+    This prevents duplicate photographs.
+  */
 
-  for (
-    const p of generated
-  ) {
+  const usedIds = new Set();
+
+  for (const p of generated) {
 
     if (p.pexelsPhotoId) {
-
       usedIds.add(
         p.pexelsPhotoId
       );
-
     }
 
   }
 
-  let count = 0;
+  let count = generated.filter(
+    p =>
+      p.image &&
+      p.pexelsPhotoId
+  ).length;
 
   /*
-    Each group contains 10 products.
-    One Pexels search supplies unique
-    photographs for those 10 products.
+    Process each product group.
   */
 
-  for (
-    const group of PRODUCT_GROUPS
-  ) {
+  for (const group of PRODUCT_GROUPS) {
 
-    const list =
-      generated.filter(
-        p =>
-          p.imageQuery ===
-          group.query
-      );
+    const list = generated.filter(
+      p =>
+        p.imageQuery === group.query
+    );
 
-    const missing =
-      list.filter(
-        p =>
-          !p.image ||
-          !p.pexelsPhotoId
-      );
+    const missing = list.filter(
+      p =>
+        !p.image ||
+        !p.pexelsPhotoId
+    );
 
     if (!missing.length) {
-
-      count += list.length;
-
       continue;
     }
 
@@ -1163,23 +1194,30 @@ async function ensureCatalog() {
       group.query
     );
 
-    const photos =
-      await collectPhotos(
-        group.query,
-        missing.length,
-        usedIds
-      );
+    const photos = await collectPhotos(
+      group.query,
+      missing.length,
+      usedIds
+    );
 
     if (
       photos.length <
       missing.length
     ) {
 
-      throw new Error(
-        "Not enough unique Pexels photos returned for: " +
+      console.error(
+        "Could not find enough unique photos for:",
         group.query
       );
 
+      /*
+        Don't destroy the catalogue if one
+        Pexels search has a problem.
+      */
+
+      save();
+
+      continue;
     }
 
     missing.forEach(
@@ -1203,10 +1241,18 @@ async function ensureCatalog() {
         product.pexelsUrl =
           photo.pexelsUrl;
 
+        count++;
+
       }
     );
 
-    count += list.length;
+    /*
+      Save after every group.
+
+      This is important because if Render restarts
+      during image setup, already completed images
+      won't need to be downloaded again.
+    */
 
     save();
 
@@ -1221,7 +1267,12 @@ async function ensureCatalog() {
   save();
 
   console.log(
-    "DONE: 400 real Pexels product photos assigned."
+    "DONE: Original 400-product catalogue is ready."
+  );
+
+  console.log(
+    "Permanent additional products:",
+    customProducts.length
   );
 }
 
