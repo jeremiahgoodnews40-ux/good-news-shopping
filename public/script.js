@@ -1,16 +1,28 @@
 const CONFIG = {
   apiBase: "/api",
-
-  // Nigerian WhatsApp number in international format.
   whatsappNumber: "2349138194324"
 };
 
-const S = {
-  user: JSON.parse(localStorage.getItem("gn_user") || "null"),
-  token: localStorage.getItem("gn_token") || "",
 
-  cart: JSON.parse(localStorage.getItem("gn_cart") || "[]"),
-  wish: JSON.parse(localStorage.getItem("gn_wish") || "[]"),
+/* =========================
+   APP STATE
+========================= */
+
+const S = {
+  user: JSON.parse(
+    localStorage.getItem("gn_user") || "null"
+  ),
+
+  token:
+    localStorage.getItem("gn_token") || "",
+
+  cart: JSON.parse(
+    localStorage.getItem("gn_cart") || "[]"
+  ),
+
+  wish: JSON.parse(
+    localStorage.getItem("gn_wish") || "[]"
+  ),
 
   products: [],
   categories: [],
@@ -22,7 +34,14 @@ const S = {
   sort: "default"
 };
 
-const $ = selector => document.querySelector(selector);
+
+/* =========================
+   HELPERS
+========================= */
+
+const $ = selector =>
+  document.querySelector(selector);
+
 
 const money = number =>
   new Intl.NumberFormat("en-NG", {
@@ -31,25 +50,32 @@ const money = number =>
     maximumFractionDigits: 0
   }).format(Number(number) || 0);
 
+
 const esc = value =>
-  String(value ?? "").replace(/[&<>"']/g, char => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;"
-  }[char]));
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    char => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[char])
+  );
+
 
 /* =========================
    TOAST
 ========================= */
 
 function toast(message) {
+
   const element = $("#toast");
 
   if (!element) return;
 
   element.textContent = message;
+
   element.classList.add("show");
 
   setTimeout(() => {
@@ -57,11 +83,13 @@ function toast(message) {
   }, 2800);
 }
 
+
 /* =========================
    SAVE LOCAL DATA
 ========================= */
 
 function save() {
+
   localStorage.setItem(
     "gn_cart",
     JSON.stringify(S.cart)
@@ -72,6 +100,7 @@ function save() {
     JSON.stringify(S.wish)
   );
 }
+
 
 /* =========================
    API
@@ -85,27 +114,34 @@ async function api(path, options = {}) {
   };
 
   if (S.token) {
-    headers.Authorization = `Bearer ${S.token}`;
+    headers.Authorization =
+      `Bearer ${S.token}`;
   }
 
-  const response = await fetch(
-    CONFIG.apiBase + path,
-    {
-      ...options,
-      headers
-    }
-  );
+  const response =
+    await fetch(
+      CONFIG.apiBase + path,
+      {
+        ...options,
+        headers
+      }
+    );
 
   const data =
-    await response.json().catch(() => ({}));
+    await response
+      .json()
+      .catch(() => ({}));
 
   if (!response.ok) {
 
-    const error = new Error(
-      data.message || "Request failed"
-    );
+    const error =
+      new Error(
+        data.message ||
+        "Request failed"
+      );
 
-    error.status = response.status;
+    error.status =
+      response.status;
 
     throw error;
   }
@@ -113,34 +149,76 @@ async function api(path, options = {}) {
   return data;
 }
 
+
 /* =========================
-   IMAGE
+   PRODUCT IMAGE
 ========================= */
 
 function pic(url) {
+
   return (
     url ||
     "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=85"
   );
 }
 
+
 /* =========================
    PRODUCT HELPERS
 ========================= */
 
 function product(id) {
+
   return S.products.find(
-    p => String(p.id) === String(id)
+    p =>
+      String(p.id) ===
+      String(id)
   );
 }
 
+
 function total() {
+
   return S.cart.reduce(
     (amount, item) =>
-      amount + Number(item.price || 0) * Number(item.qty || 0),
+      amount +
+      Number(item.price || 0) *
+      Number(item.qty || 0),
     0
   );
 }
+
+
+/* =========================
+   UPDATE COUNTERS
+========================= */
+
+function updateCounters() {
+
+  const cartAmount =
+    S.cart.reduce(
+      (amount, item) =>
+        amount +
+        Number(item.qty || 0),
+      0
+    );
+
+  if ($("#cartCount")) {
+    $("#cartCount").textContent =
+      cartAmount;
+  }
+
+  if ($("#bottomCartCount")) {
+    $("#bottomCartCount").textContent =
+      cartAmount;
+  }
+
+  if ($("#wishCount")) {
+    $("#wishCount").textContent =
+      S.wish.length;
+  }
+}
+
 
 /* =========================
    LOAD CATALOGUE
@@ -148,21 +226,27 @@ function total() {
 
 async function catalog() {
 
-  const data = await api("/products");
+  const data =
+    await api("/products");
 
-  S.products = Array.isArray(data.products)
-    ? data.products
-    : [];
+  S.products =
+    Array.isArray(data.products)
+      ? data.products
+      : [];
 
-  S.categories = Array.isArray(data.categories)
-    ? data.categories
-    : [];
+  S.categories =
+    Array.isArray(data.categories)
+      ? data.categories
+      : [];
+
+  updateCounters();
 
   render();
 }
 
+
 /* =========================
-   PRODUCT SEARCH TEXT
+   SEARCHABLE PRODUCT TEXT
 ========================= */
 
 function searchableProductText(p) {
@@ -186,14 +270,17 @@ function searchableProductText(p) {
     .toLowerCase();
 }
 
+
 /* =========================
-   SEARCH PRODUCTS
+   SEARCH
 ========================= */
 
 function searchProducts(products) {
 
   const query =
-    String(S.searchQuery || "")
+    String(
+      S.searchQuery || ""
+    )
       .trim()
       .toLowerCase();
 
@@ -206,21 +293,20 @@ function searchProducts(products) {
       .split(/\s+/)
       .filter(Boolean);
 
-  return products.filter(p => {
+  return products.filter(
+    p => {
 
-    const text =
-      searchableProductText(p);
+      const text =
+        searchableProductText(p);
 
-    /*
-      Every word entered must be found
-      somewhere in the product information.
-    */
-
-    return words.every(
-      word => text.includes(word)
-    );
-  });
+      return words.every(
+        word =>
+          text.includes(word)
+      );
+    }
+  );
 }
+
 
 /* =========================
    PRODUCT CARD
@@ -237,16 +323,36 @@ function card(p) {
       <button
         class="heart"
         data-wish="${esc(p.id)}"
-        title="Wishlist"
+        title="${
+          wished
+            ? "Remove from wishlist"
+            : "Add to wishlist"
+        }"
+        aria-label="${
+          wished
+            ? "Remove from wishlist"
+            : "Add to wishlist"
+        }"
       >
-        ${wished ? "♥" : "♡"}
+
+        <i
+          data-lucide="heart"
+          ${
+            wished
+              ? 'fill="currentColor"'
+              : ""
+          }
+        ></i>
+
       </button>
+
 
       <img
         src="${pic(p.image)}"
         alt="${esc(p.name)}"
         loading="lazy"
       >
+
 
       <div class="card-body">
 
@@ -257,6 +363,7 @@ function card(p) {
         <h3>
           ${esc(p.name)}
         </h3>
+
 
         <div class="price">
 
@@ -274,19 +381,23 @@ function card(p) {
 
         </div>
 
+
         <div class="card-actions">
 
           <button
             class="btn primary"
             data-add="${esc(p.id)}"
+            type="button"
           >
-            Add to cart
+            <i data-lucide="shopping-cart"></i>
+            <span>Add to cart</span>
           </button>
+
 
           <button
             class="btn"
-            style="border:1px solid #ddd"
             data-buy="${esc(p.id)}"
+            type="button"
           >
             Buy
           </button>
@@ -299,6 +410,48 @@ function card(p) {
   `;
 }
 
+
+/* =========================
+   CATEGORY BUTTON
+========================= */
+
+function categoryButton(category) {
+
+  return `
+    <button
+      class="cat"
+      data-cat="${esc(category.name)}"
+      type="button"
+    >
+
+      <span>
+        <i data-lucide="grid-2x2"></i>
+      </span>
+
+      ${esc(category.name)}
+
+    </button>
+  `;
+}
+
+
+/* =========================
+   REFRESH ICONS
+========================= */
+
+function refreshIcons() {
+
+  if (
+    window.lucide &&
+    typeof lucide.createIcons ===
+      "function"
+  ) {
+
+    lucide.createIcons();
+  }
+}
+
+
 /* =========================
    MAIN RENDER
 ========================= */
@@ -307,41 +460,50 @@ function render() {
 
   if (!S.user || !S.token) {
 
-    $("#auth")?.classList.remove("hidden");
-    $("#app")?.classList.add("hidden");
+    $("#auth")
+      ?.classList
+      .remove("hidden");
+
+    $("#app")
+      ?.classList
+      .add("hidden");
 
     return;
   }
 
-  $("#auth")?.classList.add("hidden");
-  $("#app")?.classList.remove("hidden");
 
-  if ($("#cartCount")) {
+  $("#auth")
+    ?.classList
+    .add("hidden");
 
-    $("#cartCount").textContent =
-      S.cart.reduce(
-        (amount, item) =>
-          amount + Number(item.qty || 0),
-        0
-      );
-  }
+  $("#app")
+    ?.classList
+    .remove("hidden");
 
-  if ($("#wishCount")) {
-    $("#wishCount").textContent =
-      S.wish.length;
-  }
+
+  updateCounters();
+
 
   if ($("#avatar")) {
 
-    $("#avatar").textContent =
-      (S.user.name || "G")
+    const first =
+      String(
+        S.user.name || "G"
+      )
+        .trim()
         .charAt(0)
         .toUpperCase();
+
+    $("#avatar").textContent =
+      first || "G";
   }
 
-  const main = $("#main");
+
+  const main =
+    $("#main");
 
   if (!main) return;
+
 
   if (S.view === "home") {
     home(main);
@@ -351,7 +513,9 @@ function render() {
     shop(main);
   }
 
-  else if (S.view === "categories") {
+  else if (
+    S.view === "categories"
+  ) {
     cats(main);
   }
 
@@ -363,26 +527,44 @@ function render() {
     cart(main);
   }
 
-  else if (S.view === "checkout") {
+  else if (
+    S.view === "checkout"
+  ) {
     checkout(main);
   }
 
-  else if (S.view === "orders") {
+  else if (
+    S.view === "orders"
+  ) {
     orders(main);
   }
 
-  else if (S.view === "account") {
+  else if (
+    S.view === "account"
+  ) {
     account(main);
   }
 
-  else if (S.view === "wishlist") {
+  else if (
+    S.view === "wishlist"
+  ) {
     wish(main);
+  }
+
+  else if (
+    S.view === "contact"
+  ) {
+    contact(main);
   }
 
   else {
     home(main);
   }
+
+
+  refreshIcons();
 }
+
 
 /* =========================
    HOME
@@ -413,18 +595,22 @@ function home(main) {
         <button
           class="btn primary"
           data-view="shop"
+          type="button"
         >
-          Shop now →
+          <span>Shop now</span>
+          <i data-lucide="arrow-right"></i>
         </button>
 
       </div>
 
+
       <img
         src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1200&q=85"
-        alt="Shopping"
+        alt="Good News Shopping"
       >
 
     </section>
+
 
     <div class="section">
 
@@ -432,53 +618,54 @@ function home(main) {
         Popular products
       </h2>
 
-      <button data-view="shop">
-        See all →
+      <button
+        data-view="shop"
+        type="button"
+      >
+        See all
+        <i data-lucide="arrow-right"></i>
       </button>
 
     </div>
 
+
     <div class="grid">
-      ${S.products
-        .slice(0, 8)
-        .map(card)
-        .join("")}
+
+      ${
+        S.products
+          .slice(0, 8)
+          .map(card)
+          .join("")
+      }
+
     </div>
+
 
     <div class="section">
-      <h2>Categories</h2>
+
+      <h2>
+        Categories
+      </h2>
+
     </div>
+
 
     <div class="categories">
-      ${S.categories
-        .slice(0, 8)
-        .map(categoryButton)
-        .join("")}
+
+      ${
+        S.categories
+          .slice(0, 8)
+          .map(categoryButton)
+          .join("")
+      }
+
     </div>
+
   `;
+
+  refreshIcons();
 }
 
-/* =========================
-   CATEGORY BUTTON
-========================= */
-
-function categoryButton(category) {
-
-  return `
-    <button
-      class="cat"
-      data-cat="${esc(category.name)}"
-    >
-
-      <span>
-        ${esc(category.icon || "🛍️")}
-      </span>
-
-      ${esc(category.name)}
-
-    </button>
-  `;
-}
 
 /* =========================
    SHOP
@@ -489,26 +676,25 @@ function shop(main) {
   let products =
     [...S.products];
 
-  /* CATEGORY */
 
   if (S.shopCategory) {
 
     products =
       products.filter(
         p =>
-          String(p.category || "")
-            .toLowerCase() ===
-          String(S.shopCategory)
-            .toLowerCase()
+          String(
+            p.category || ""
+          ).toLowerCase() ===
+          String(
+            S.shopCategory
+          ).toLowerCase()
       );
   }
 
-  /* SEARCH */
 
   products =
     searchProducts(products);
 
-  /* SORT */
 
   if (S.sort === "price-low") {
 
@@ -519,7 +705,9 @@ function shop(main) {
     );
   }
 
-  else if (S.sort === "price-high") {
+  else if (
+    S.sort === "price-high"
+  ) {
 
     products.sort(
       (a, b) =>
@@ -528,7 +716,9 @@ function shop(main) {
     );
   }
 
-  else if (S.sort === "name") {
+  else if (
+    S.sort === "name"
+  ) {
 
     products.sort(
       (a, b) =>
@@ -539,7 +729,9 @@ function shop(main) {
     );
   }
 
-  else if (S.sort === "rating") {
+  else if (
+    S.sort === "rating"
+  ) {
 
     products.sort(
       (a, b) =>
@@ -547,6 +739,7 @@ function shop(main) {
         Number(a.rating || 0)
     );
   }
+
 
   main.innerHTML = `
 
@@ -560,12 +753,17 @@ function shop(main) {
 
         <span>
           ${products.length}
-          product${products.length === 1 ? "" : "s"}
+          product${
+            products.length === 1
+              ? ""
+              : "s"
+          }
         </span>
 
       </div>
 
     </div>
+
 
     <div
       style="
@@ -580,7 +778,9 @@ function shop(main) {
         id="catalogSearch"
         type="search"
         placeholder="Search any product..."
-        value="${esc(S.searchQuery)}"
+        value="${esc(
+          S.searchQuery
+        )}"
         style="
           flex:1;
           min-width:200px;
@@ -589,6 +789,7 @@ function shop(main) {
           border-radius:8px;
         "
       >
+
 
       <select
         id="sortProducts"
@@ -599,39 +800,72 @@ function shop(main) {
         "
       >
 
-        <option value="default"
-          ${S.sort === "default" ? "selected" : ""}>
+        <option
+          value="default"
+          ${
+            S.sort === "default"
+              ? "selected"
+              : ""
+          }
+        >
           Sort by
         </option>
 
-        <option value="price-low"
-          ${S.sort === "price-low" ? "selected" : ""}>
+        <option
+          value="price-low"
+          ${
+            S.sort === "price-low"
+              ? "selected"
+              : ""
+          }
+        >
           Price: Low to High
         </option>
 
-        <option value="price-high"
-          ${S.sort === "price-high" ? "selected" : ""}>
+        <option
+          value="price-high"
+          ${
+            S.sort === "price-high"
+              ? "selected"
+              : ""
+          }
+        >
           Price: High to Low
         </option>
 
-        <option value="name"
-          ${S.sort === "name" ? "selected" : ""}>
+        <option
+          value="name"
+          ${
+            S.sort === "name"
+              ? "selected"
+              : ""
+          }
+        >
           Name: A-Z
         </option>
 
-        <option value="rating"
-          ${S.sort === "rating" ? "selected" : ""}>
+        <option
+          value="rating"
+          ${
+            S.sort === "rating"
+              ? "selected"
+              : ""
+          }
+        >
           Highest Rated
         </option>
 
       </select>
 
+
       ${
-        S.shopCategory || S.searchQuery
+        S.shopCategory ||
+        S.searchQuery
           ? `
             <button
               class="btn"
               id="clearFilters"
+              type="button"
             >
               Clear
             </button>
@@ -640,6 +874,7 @@ function shop(main) {
       }
 
     </div>
+
 
     ${
       S.shopCategory
@@ -651,11 +886,14 @@ function shop(main) {
             "
           >
             Category:
-            ${esc(S.shopCategory)}
+            ${esc(
+              S.shopCategory
+            )}
           </div>
         `
         : ""
     }
+
 
     ${
       products.length
@@ -683,6 +921,7 @@ function shop(main) {
             <button
               class="btn primary"
               id="clearFilters"
+              type="button"
             >
               Show all products
             </button>
@@ -690,10 +929,15 @@ function shop(main) {
           </div>
         `
     }
+
   `;
 
+
   setupShopControls();
+
+  refreshIcons();
 }
+
 
 /* =========================
    SHOP CONTROLS
@@ -713,10 +957,13 @@ function setupShopControls() {
         S.searchQuery =
           event.target.value;
 
-        shop($("#main"));
+        shop(
+          $("#main")
+        );
       }
     );
   }
+
 
   const sort =
     $("#sortProducts");
@@ -730,10 +977,13 @@ function setupShopControls() {
         S.sort =
           event.target.value;
 
-        shop($("#main"));
+        shop(
+          $("#main")
+        );
       }
     );
   }
+
 
   const clear =
     $("#clearFilters");
@@ -748,11 +998,14 @@ function setupShopControls() {
         S.shopCategory = "";
         S.sort = "default";
 
-        shop($("#main"));
+        shop(
+          $("#main")
+        );
       }
     );
   }
 }
+
 
 /* =========================
    CATEGORIES
@@ -763,16 +1016,29 @@ function cats(main) {
   main.innerHTML = `
 
     <div class="section">
-      <h2>Categories</h2>
+
+      <h2>
+        Categories
+      </h2>
+
     </div>
 
+
     <div class="categories">
-      ${S.categories
-        .map(categoryButton)
-        .join("")}
+
+      ${
+        S.categories
+          .map(categoryButton)
+          .join("")
+      }
+
     </div>
+
   `;
+
+  refreshIcons();
 }
+
 
 /* =========================
    DEALS
@@ -783,9 +1049,14 @@ function deals(main) {
   const products =
     S.products.filter(
       p =>
-        Number(p.oldPrice || 0) >
-        Number(p.price || 0)
+        Number(
+          p.oldPrice || 0
+        ) >
+        Number(
+          p.price || 0
+        )
     );
+
 
   main.innerHTML = `
 
@@ -801,25 +1072,36 @@ function deals(main) {
 
     </div>
 
+
     ${
       products.length
 
         ? `
           <div class="grid">
+
             ${products
               .map(card)
               .join("")}
+
           </div>
         `
 
         : `
           <div class="summary">
-            No deals available right now.
+
+            <h3>
+              No deals available right now.
+            </h3>
+
           </div>
         `
     }
+
   `;
+
+  refreshIcons();
 }
+
 
 /* =========================
    CART
@@ -832,29 +1114,46 @@ function cart(main) {
     main.innerHTML = `
 
       <div class="section">
-        <h2>Your cart</h2>
+
+        <h2>
+          Your cart
+        </h2>
+
       </div>
+
 
       <div class="summary">
 
         <h3>
-          Cart is empty.
+          Your cart is empty.
         </h3>
+
+        <p>
+          Add products to your cart
+          to see them here.
+        </p>
 
         <button
           class="btn primary"
           data-view="shop"
+          type="button"
         >
-          Shop now
+          <span>Shop now</span>
+          <i data-lucide="arrow-right"></i>
         </button>
 
       </div>
+
     `;
+
+    refreshIcons();
 
     return;
   }
 
-  const subtotal = total();
+
+  const subtotal =
+    total();
 
   const delivery =
     subtotal > 500000
@@ -864,73 +1163,93 @@ function cart(main) {
   const grandTotal =
     subtotal + delivery;
 
+
   main.innerHTML = `
 
     <div class="section">
 
-      <h2>Your cart</h2>
+      <h2>
+        Your cart
+      </h2>
 
       <span>
-        ${S.cart.length} item type(s)
+        ${S.cart.length}
+        item type${
+          S.cart.length === 1
+            ? ""
+            : "s"
+        }
       </span>
 
     </div>
 
-    ${S.cart.map(item => {
 
-      const p =
-        product(item.id);
+    ${
+      S.cart.map(item => {
 
-      if (!p) return "";
+        const p =
+          product(item.id);
 
-      return `
-        <div class="cart-row">
+        if (!p) return "";
 
-          <img
-            src="${pic(p.image)}"
-            alt="${esc(p.name)}"
-          >
+        return `
 
-          <div>
+          <div class="cart-row">
 
-            <b>
-              ${esc(p.name)}
-            </b>
+            <img
+              src="${pic(p.image)}"
+              alt="${esc(p.name)}"
+            >
+
 
             <div>
-              ${money(item.price)}
+
+              <b>
+                ${esc(p.name)}
+              </b>
+
+              <div>
+                ${money(item.price)}
+              </div>
+
             </div>
 
-          </div>
 
-          <div class="qty">
+            <div class="qty">
+
+              <button
+                data-minus="${esc(item.id)}"
+                type="button"
+              >
+                −
+              </button>
+
+              ${item.qty}
+
+              <button
+                data-plus="${esc(item.id)}"
+                type="button"
+              >
+                +
+              </button>
+
+            </div>
+
 
             <button
-              data-minus="${esc(item.id)}"
+              data-remove="${esc(item.id)}"
+              type="button"
             >
-              −
-            </button>
-
-            ${item.qty}
-
-            <button
-              data-plus="${esc(item.id)}"
-            >
-              +
+              Remove
             </button>
 
           </div>
 
-          <button
-            data-remove="${esc(item.id)}"
-          >
-            Remove
-          </button>
+        `;
 
-        </div>
-      `;
+      }).join("")
+    }
 
-    }).join("")}
 
     <div
       class="summary"
@@ -958,16 +1277,23 @@ function cart(main) {
         ${money(grandTotal)}
       </h3>
 
+
       <button
         class="btn primary"
         data-view="checkout"
+        type="button"
       >
-        Proceed to checkout
+        <span>Proceed to checkout</span>
+        <i data-lucide="arrow-right"></i>
       </button>
 
     </div>
+
   `;
+
+  refreshIcons();
 }
+
 
 /* =========================
    CHECKOUT
@@ -984,17 +1310,29 @@ function checkout(main) {
     return;
   }
 
+
   const orderTotal =
     total() +
-    (total() > 500000 ? 0 : 2500);
+    (
+      total() > 500000
+        ? 0
+        : 2500
+    );
+
 
   main.innerHTML = `
 
     <div class="section">
-      <h2>Checkout</h2>
+
+      <h2>
+        Checkout
+      </h2>
+
     </div>
 
+
     <div class="checkout-layout">
+
 
       <form
         id="checkoutForm"
@@ -1005,15 +1343,19 @@ function checkout(main) {
           Delivery details
         </h3>
 
+
         <label>
           Full name
         </label>
 
         <input
           id="cName"
-          value="${esc(S.user.name)}"
+          value="${esc(
+            S.user.name
+          )}"
           required
         >
+
 
         <label>
           Phone
@@ -1021,9 +1363,11 @@ function checkout(main) {
 
         <input
           id="cPhone"
+          type="tel"
           placeholder="080..."
           required
         >
+
 
         <label>
           State
@@ -1048,6 +1392,7 @@ function checkout(main) {
 
         </select>
 
+
         <label>
           City
         </label>
@@ -1056,6 +1401,7 @@ function checkout(main) {
           id="cCity"
           required
         >
+
 
         <label>
           Address
@@ -1067,11 +1413,14 @@ function checkout(main) {
           required
         ></textarea>
 
+
         <label>
           Payment
         </label>
 
-        <select id="cPayment">
+        <select
+          id="cPayment"
+        >
 
           <option value="cash">
             Cash on delivery
@@ -1087,14 +1436,17 @@ function checkout(main) {
 
         </select>
 
+
         <button
           class="btn primary full"
           type="submit"
         >
-          Place order
+          <span>Place order</span>
+          <i data-lucide="check"></i>
         </button>
 
       </form>
+
 
       <aside class="summary">
 
@@ -1102,27 +1454,33 @@ function checkout(main) {
           Order summary
         </h3>
 
-        ${S.cart.map(item => {
 
-          const p =
-            product(item.id);
+        ${
+          S.cart.map(item => {
 
-          if (!p) return "";
+            const p =
+              product(item.id);
 
-          return `
-            <p>
-              ${item.qty} ×
-              ${esc(p.name)}
-              —
-              ${money(
-                item.price * item.qty
-              )}
-            </p>
-          `;
+            if (!p) return "";
 
-        }).join("")}
+            return `
+              <p>
+                ${item.qty} ×
+                ${esc(p.name)}
+                —
+                ${money(
+                  item.price *
+                  item.qty
+                )}
+              </p>
+            `;
+
+          }).join("")
+        }
+
 
         <hr>
+
 
         <h2>
           ${money(orderTotal)}
@@ -1131,8 +1489,12 @@ function checkout(main) {
       </aside>
 
     </div>
+
   `;
+
+  refreshIcons();
 }
+
 
 /* =========================
    ORDERS
@@ -1143,21 +1505,31 @@ async function orders(main) {
   main.innerHTML = `
 
     <div class="section">
-      <h2>My Orders</h2>
+
+      <h2>
+        My Orders
+      </h2>
+
     </div>
+
 
     <div id="ordersBox">
       Loading...
     </div>
+
   `;
+
 
   try {
 
     const data =
-      await api("/orders/my");
+      await api(
+        "/orders/my"
+      );
 
     const box =
       $("#ordersBox");
+
 
     if (
       !data.orders ||
@@ -1165,13 +1537,30 @@ async function orders(main) {
     ) {
 
       box.innerHTML = `
+
         <div class="summary">
-          No orders yet.
+
+          <h3>
+            No orders yet.
+          </h3>
+
+          <button
+            class="btn primary"
+            data-view="shop"
+            type="button"
+          >
+            Start shopping
+          </button>
+
         </div>
+
       `;
+
+      refreshIcons();
 
       return;
     }
+
 
     const statuses = [
       "placed",
@@ -1180,73 +1569,96 @@ async function orders(main) {
       "delivered"
     ];
 
+
     box.innerHTML =
-      data.orders.map(order => {
+      data.orders
+        .map(order => {
 
-        const current =
-          statuses.indexOf(
-            order.status
-          );
+          const current =
+            statuses.indexOf(
+              order.status
+            );
 
-        return `
-          <div class="order">
 
-            <b>
-              ${esc(order.orderNumber)}
-            </b>
+          return `
 
-            <span
-              class="status"
-              style="float:right"
-            >
-              ${esc(order.status)}
-            </span>
+            <div class="order">
 
-            <p>
-              ${new Date(
-                order.createdAt
-              ).toLocaleString()}
-            </p>
-
-            <p>
-              ${order.items.length}
-              item(s)
-              ·
               <b>
-                ${money(order.total)}
+                ${esc(
+                  order.orderNumber
+                )}
               </b>
-            </p>
 
-            <div class="steps">
 
-              ${statuses.map(
-                (status, index) => `
-                  <div
-                    class="step ${
-                      current >= index
-                        ? "on"
-                        : ""
-                    }"
-                  ></div>
-                `
-              ).join("")}
+              <span
+                class="status"
+                style="float:right"
+              >
+                ${esc(
+                  order.status
+                )}
+              </span>
+
+
+              <p>
+                ${
+                  new Date(
+                    order.createdAt
+                  ).toLocaleString()
+                }
+              </p>
+
+
+              <p>
+                ${order.items.length}
+                item(s)
+                ·
+                <b>
+                  ${money(
+                    order.total
+                  )}
+                </b>
+              </p>
+
+
+              <div class="steps">
+
+                ${
+                  statuses
+                    .map(
+                      (
+                        status,
+                        index
+                      ) => `
+
+                        <div
+                          class="step ${
+                            current >= index
+                              ? "on"
+                              : ""
+                          }"
+                        ></div>
+
+                      `
+                    )
+                    .join("")
+                }
+
+              </div>
 
             </div>
 
-          </div>
-        `;
+          `;
 
-      }).join("");
+        })
+        .join("");
+
 
   } catch (error) {
 
-    /*
-      IMPORTANT:
-      Do NOT sign the customer out just because
-      loading orders failed.
-    */
-
     $("#ordersBox").innerHTML = `
+
       <div class="summary">
 
         <h3>
@@ -1254,25 +1666,39 @@ async function orders(main) {
         </h3>
 
         <p>
-          ${esc(error.message)}
+          ${esc(
+            error.message
+          )}
         </p>
+
 
         <button
           class="btn primary"
           id="retryOrders"
+          type="button"
         >
           Try again
         </button>
 
       </div>
+
     `;
 
-    $("#retryOrders")?.addEventListener(
-      "click",
-      () => orders($("#main"))
-    );
+
+    $("#retryOrders")
+      ?.addEventListener(
+        "click",
+        () =>
+          orders(
+            $("#main")
+          )
+      );
   }
+
+
+  refreshIcons();
 }
+
 
 /* =========================
    ACCOUNT
@@ -1280,37 +1706,91 @@ async function orders(main) {
 
 function account(main) {
 
+  const initial =
+    String(
+      S.user.name || "G"
+    )
+      .trim()
+      .charAt(0)
+      .toUpperCase();
+
+
   main.innerHTML = `
 
     <div class="section">
-      <h2>My account</h2>
+
+      <h2>
+        My account
+      </h2>
+
     </div>
+
 
     <div class="summary">
 
-      <h3>
-        ${esc(S.user.name)}
-      </h3>
+      <div
+        style="
+          display:flex;
+          align-items:center;
+          gap:14px;
+          margin-bottom:18px;
+        "
+      >
 
-      <p>
-        ${esc(S.user.email)}
-      </p>
+        <div
+          class="profile-avatar"
+          style="
+            display:grid;
+            place-items:center;
+          "
+        >
+          ${initial || "G"}
+        </div>
+
+
+        <div>
+
+          <h3>
+            ${esc(
+              S.user.name
+            )}
+          </h3>
+
+          <p>
+            ${esc(
+              S.user.email
+            )}
+          </p>
+
+        </div>
+
+      </div>
+
 
       <button
         id="logout2"
         class="btn"
+        type="button"
       >
-        Sign out
+        <i data-lucide="log-out"></i>
+        <span>Sign out</span>
       </button>
 
     </div>
+
   `;
 
-  $("#logout2")?.addEventListener(
-    "click",
-    logout
-  );
+
+  $("#logout2")
+    ?.addEventListener(
+      "click",
+      logout
+    );
+
+
+  refreshIcons();
 }
+
 
 /* =========================
    WISHLIST
@@ -1320,8 +1800,12 @@ function wish(main) {
 
   const products =
     S.products.filter(
-      p => S.wish.includes(p.id)
+      p =>
+        S.wish.includes(
+          p.id
+        )
     );
+
 
   main.innerHTML = `
 
@@ -1332,10 +1816,12 @@ function wish(main) {
       </h2>
 
       <span>
-        ${products.length} saved
+        ${products.length}
+        saved
       </span>
 
     </div>
+
 
     ${
       products.length
@@ -1355,9 +1841,15 @@ function wish(main) {
               Wishlist is empty.
             </h3>
 
+            <p>
+              Save products here
+              for later.
+            </p>
+
             <button
               class="btn primary"
               data-view="shop"
+              type="button"
             >
               Browse products
             </button>
@@ -1365,8 +1857,103 @@ function wish(main) {
           </div>
         `
     }
+
   `;
+
+  refreshIcons();
 }
+
+
+/* =========================
+   CONTACT PAGE
+========================= */
+
+function contact(main) {
+
+  main.innerHTML = `
+
+    <div class="section">
+
+      <h2>
+        Contact Good News Shopping
+      </h2>
+
+    </div>
+
+
+    <div
+      class="summary"
+      style="
+        max-width:700px;
+      "
+    >
+
+      <h3>
+        We're here to help.
+      </h3>
+
+      <p>
+        Have a question about a product,
+        an order or delivery?
+        Contact us directly.
+      </p>
+
+
+      <div
+        style="
+          display:grid;
+          gap:12px;
+          margin-top:20px;
+        "
+      >
+
+        <button
+          class="btn primary"
+          id="contactWhatsApp"
+          type="button"
+        >
+          <i data-lucide="message-circle"></i>
+          <span>Chat on WhatsApp</span>
+        </button>
+
+
+        <button
+          class="btn"
+          id="contactEmail"
+          type="button"
+        >
+          <i data-lucide="mail"></i>
+          <span>Email support</span>
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  $("#contactWhatsApp")
+    ?.addEventListener(
+      "click",
+      openWhatsApp
+    );
+
+
+  $("#contactEmail")
+    ?.addEventListener(
+      "click",
+      () => {
+
+        window.location.href =
+          "mailto:support@goodnewsshopping.com";
+      }
+    );
+
+
+  refreshIcons();
+}
+
 
 /* =========================
    ADD TO CART
@@ -1377,6 +1964,7 @@ function add(id) {
   const p =
     product(id);
 
+
   if (!p) {
 
     toast(
@@ -1386,12 +1974,14 @@ function add(id) {
     return;
   }
 
+
   const existing =
     S.cart.find(
       item =>
         String(item.id) ===
         String(id)
     );
+
 
   if (existing) {
 
@@ -1406,14 +1996,229 @@ function add(id) {
     });
   }
 
+
   save();
 
+  updateCounters();
+
   render();
+
 
   toast(
     "Added to cart"
   );
 }
+
+
+/* =========================
+   CART DRAWER
+========================= */
+
+function openDrawer() {
+
+  const drawer =
+    $("#drawer");
+
+  const overlay =
+    $("#overlay");
+
+  if (!drawer) return;
+
+
+  updateDrawer();
+
+
+  drawer.classList.add(
+    "open"
+  );
+
+  overlay?.classList.add(
+    "show"
+  );
+}
+
+
+function closeDrawer() {
+
+  $("#drawer")
+    ?.classList
+    .remove("open");
+
+  $("#overlay")
+    ?.classList
+    .remove("show");
+}
+
+
+function updateDrawer() {
+
+  const items =
+    $("#drawerItems");
+
+  const totalElement =
+    $("#drawerTotal");
+
+
+  if (!items) return;
+
+
+  if (!S.cart.length) {
+
+    items.innerHTML = `
+
+      <div
+        class="summary"
+        style="
+          box-shadow:none;
+          text-align:center;
+        "
+      >
+
+        <i
+          data-lucide="shopping-cart"
+          style="
+            width:40px;
+            height:40px;
+            margin:0 auto 10px;
+          "
+        ></i>
+
+        <h3>
+          Your cart is empty.
+        </h3>
+
+      </div>
+
+    `;
+
+  } else {
+
+    items.innerHTML =
+      S.cart.map(item => {
+
+        const p =
+          product(item.id);
+
+        if (!p) return "";
+
+        return `
+
+          <div
+            style="
+              display:grid;
+              grid-template-columns:65px 1fr;
+              gap:10px;
+              padding:12px 0;
+              border-bottom:1px solid #eee;
+            "
+          >
+
+            <img
+              src="${pic(p.image)}"
+              alt="${esc(p.name)}"
+              style="
+                width:65px;
+                height:65px;
+                object-fit:cover;
+                border-radius:9px;
+              "
+            >
+
+
+            <div>
+
+              <b>
+                ${esc(p.name)}
+              </b>
+
+              <p>
+                ${item.qty}
+                ×
+                ${money(item.price)}
+              </p>
+
+
+              <div
+                style="
+                  display:flex;
+                  align-items:center;
+                  gap:8px;
+                  margin-top:5px;
+                "
+              >
+
+                <button
+                  data-minus="${esc(item.id)}"
+                  type="button"
+                >
+                  −
+                </button>
+
+                <span>
+                  ${item.qty}
+                </span>
+
+                <button
+                  data-plus="${esc(item.id)}"
+                  type="button"
+                >
+                  +
+                </button>
+
+                <button
+                  data-remove="${esc(item.id)}"
+                  type="button"
+                  style="
+                    margin-left:auto;
+                    color:#dc2626;
+                  "
+                >
+                  Remove
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        `;
+
+      }).join("");
+  }
+
+
+  if (totalElement) {
+
+    totalElement.textContent =
+      money(total());
+  }
+
+
+  refreshIcons();
+}
+
+
+/* =========================
+   WHATSAPP
+========================= */
+
+function openWhatsApp() {
+
+  const message =
+    encodeURIComponent(
+      "Hello Good News Shopping, I need help."
+    );
+
+
+  const url =
+    `https://wa.me/${CONFIG.whatsappNumber}?text=${message}`;
+
+
+  window.location.href =
+    url;
+}
+
 
 /* =========================
    LOGOUT
@@ -1432,150 +2237,232 @@ function logout() {
     "gn_token"
   );
 
+  closeDrawer();
+
   render();
 }
+
 
 /* =========================
    LOGIN
 ========================= */
 
-$("#loginForm")?.addEventListener(
-  "submit",
-  async event => {
+$("#loginForm")
+  ?.addEventListener(
+    "submit",
+    async event => {
 
-    event.preventDefault();
+      event.preventDefault();
 
-    try {
+      try {
 
-      const data =
-        await api(
-          "/auth/login",
-          {
-            method: "POST",
+        const data =
+          await api(
+            "/auth/login",
+            {
+              method: "POST",
 
-            body: JSON.stringify({
-              email:
-                $("#loginEmail").value,
+              body:
+                JSON.stringify({
+                  email:
+                    $("#loginEmail")
+                      .value,
 
-              password:
-                $("#loginPassword").value
-            })
-          }
+                  password:
+                    $("#loginPassword")
+                      .value
+                })
+            }
+          );
+
+
+        S.user =
+          data.user;
+
+        S.token =
+          data.token;
+
+
+        localStorage.setItem(
+          "gn_user",
+          JSON.stringify(
+            data.user
+          )
         );
 
-      S.user = data.user;
-      S.token = data.token;
 
-      localStorage.setItem(
-        "gn_user",
-        JSON.stringify(data.user)
-      );
+        localStorage.setItem(
+          "gn_token",
+          data.token
+        );
 
-      localStorage.setItem(
-        "gn_token",
-        data.token
-      );
 
-      await catalog();
+        await catalog();
 
-    } catch (error) {
 
-      toast(
-        error.message
-      );
+      } catch (error) {
+
+        toast(
+          error.message
+        );
+      }
     }
-  }
-);
+  );
+
 
 /* =========================
    REGISTER
 ========================= */
 
-$("#registerForm")?.addEventListener(
-  "submit",
-  async event => {
+$("#registerForm")
+  ?.addEventListener(
+    "submit",
+    async event => {
 
-    event.preventDefault();
+      event.preventDefault();
 
-    try {
+      try {
 
-      const data =
-        await api(
-          "/auth/register",
-          {
-            method: "POST",
+        const data =
+          await api(
+            "/auth/register",
+            {
+              method: "POST",
 
-            body: JSON.stringify({
-              name:
-                $("#regName").value,
+              body:
+                JSON.stringify({
+                  name:
+                    $("#regName")
+                      .value,
 
-              email:
-                $("#regEmail").value,
+                  email:
+                    $("#regEmail")
+                      .value,
 
-              password:
-                $("#regPassword").value
-            })
-          }
+                  password:
+                    $("#regPassword")
+                      .value
+                })
+            }
+          );
+
+
+        S.user =
+          data.user;
+
+        S.token =
+          data.token;
+
+
+        localStorage.setItem(
+          "gn_user",
+          JSON.stringify(
+            data.user
+          )
         );
 
-      S.user = data.user;
-      S.token = data.token;
 
-      localStorage.setItem(
-        "gn_user",
-        JSON.stringify(data.user)
-      );
+        localStorage.setItem(
+          "gn_token",
+          data.token
+        );
 
-      localStorage.setItem(
-        "gn_token",
-        data.token
-      );
 
-      await catalog();
+        await catalog();
 
-    } catch (error) {
 
-      toast(
-        error.message
-      );
+      } catch (error) {
+
+        toast(
+          error.message
+        );
+      }
     }
-  }
-);
+  );
+
 
 /* =========================
-   SHOW LOGIN / REGISTER
+   SHOW REGISTER
 ========================= */
 
-$("#showRegister")?.addEventListener(
-  "click",
-  () => {
+$("#showRegister")
+  ?.addEventListener(
+    "click",
+    () => {
 
-    $("#loginBox")
-      ?.classList
-      .add("hidden");
+      $("#loginBox")
+        ?.classList
+        .add("hidden");
 
-    $("#registerBox")
-      ?.classList
-      .remove("hidden");
-  }
-);
+      $("#registerBox")
+        ?.classList
+        .remove("hidden");
+    }
+  );
 
-$("#showLogin")?.addEventListener(
-  "click",
-  () => {
-
-    $("#registerBox")
-      ?.classList
-      .add("hidden");
-
-    $("#loginBox")
-      ?.classList
-      .remove("hidden");
-  }
-);
 
 /* =========================
-   CLICK EVENTS
+   SHOW LOGIN
+========================= */
+
+$("#showLogin")
+  ?.addEventListener(
+    "click",
+    () => {
+
+      $("#registerBox")
+        ?.classList
+        .add("hidden");
+
+      $("#loginBox")
+        ?.classList
+        .remove("hidden");
+    }
+  );
+
+
+/* =========================
+   GOOGLE / APPLE BUTTONS
+========================= */
+
+function socialLoginNotice() {
+
+  toast(
+    "Google and Apple sign-in will be connected after OAuth setup."
+  );
+}
+
+
+$("#googleLogin")
+  ?.addEventListener(
+    "click",
+    socialLoginNotice
+  );
+
+
+$("#appleLogin")
+  ?.addEventListener(
+    "click",
+    socialLoginNotice
+  );
+
+
+$("#googleRegister")
+  ?.addEventListener(
+    "click",
+    socialLoginNotice
+  );
+
+
+$("#appleRegister")
+  ?.addEventListener(
+    "click",
+    socialLoginNotice
+  );
+
+
+/* =========================
+   GENERAL CLICK EVENTS
 ========================= */
 
 document.addEventListener(
@@ -1589,24 +2476,33 @@ document.addEventListener(
         "[data-view]"
       );
 
+
     if (viewButton) {
 
       S.view =
         viewButton.dataset.view;
+
 
       if (
         S.view === "shop"
       ) {
 
         S.shopCategory = "";
-        S.searchQuery = "";
-        S.sort = "default";
+
+        /*
+          Keep the current search only
+          when the user explicitly searched.
+        */
       }
+
+
+      closeMobileMenu();
 
       render();
 
       return;
     }
+
 
     /* ADD */
 
@@ -1614,6 +2510,7 @@ document.addEventListener(
       event.target.closest(
         "[data-add]"
       );
+
 
     if (addButton) {
 
@@ -1624,12 +2521,14 @@ document.addEventListener(
       return;
     }
 
+
     /* BUY */
 
     const buyButton =
       event.target.closest(
         "[data-buy]"
       );
+
 
     if (buyButton) {
 
@@ -1646,6 +2545,7 @@ document.addEventListener(
       return;
     }
 
+
     /* WISHLIST */
 
     const wishButton =
@@ -1653,18 +2553,26 @@ document.addEventListener(
         "[data-wish]"
       );
 
+
     if (wishButton) {
 
       const id =
         wishButton.dataset.wish;
 
+
       if (
-        S.wish.includes(id)
+        S.wish.some(
+          x =>
+            String(x) ===
+            String(id)
+        )
       ) {
 
         S.wish =
           S.wish.filter(
-            x => x !== id
+            x =>
+              String(x) !==
+              String(id)
           );
 
         toast(
@@ -1680,12 +2588,16 @@ document.addEventListener(
         );
       }
 
+
       save();
+
+      updateCounters();
 
       render();
 
       return;
     }
+
 
     /* CATEGORY */
 
@@ -1694,20 +2606,31 @@ document.addEventListener(
         "[data-cat]"
       );
 
+
     if (category) {
 
-      S.view = "shop";
+      S.view =
+        "shop";
 
       S.shopCategory =
         category.dataset.cat;
 
       S.searchQuery = "";
-      S.sort = "default";
 
-      shop($("#main"));
+      S.sort =
+        "default";
+
+      closeMobileMenu();
+
+      shop(
+        $("#main")
+      );
+
+      refreshIcons();
 
       return;
     }
+
 
     /* PLUS */
 
@@ -1715,6 +2638,7 @@ document.addEventListener(
       event.target.closest(
         "[data-plus]"
       );
+
 
     if (plus) {
 
@@ -1727,15 +2651,23 @@ document.addEventListener(
             )
         );
 
+
       if (item) {
         item.qty++;
       }
 
+
       save();
+
+      updateCounters();
+
+      updateDrawer();
+
       render();
 
       return;
     }
+
 
     /* MINUS */
 
@@ -1744,10 +2676,12 @@ document.addEventListener(
         "[data-minus]"
       );
 
+
     if (minus) {
 
       const id =
         minus.dataset.minus;
+
 
       const item =
         S.cart.find(
@@ -1756,9 +2690,11 @@ document.addEventListener(
             String(id)
         );
 
+
       if (item) {
 
         item.qty--;
+
 
         if (item.qty < 1) {
 
@@ -1771,11 +2707,18 @@ document.addEventListener(
         }
       }
 
+
       save();
+
+      updateCounters();
+
+      updateDrawer();
+
       render();
 
       return;
     }
+
 
     /* REMOVE */
 
@@ -1784,10 +2727,12 @@ document.addEventListener(
         "[data-remove]"
       );
 
+
     if (remove) {
 
       const id =
         remove.dataset.remove;
+
 
       S.cart =
         S.cart.filter(
@@ -1796,8 +2741,15 @@ document.addEventListener(
             String(id)
         );
 
+
       save();
+
+      updateCounters();
+
+      updateDrawer();
+
       render();
+
 
       toast(
         "Removed from cart"
@@ -1805,58 +2757,91 @@ document.addEventListener(
 
       return;
     }
+
   }
 );
 
+
 /* =========================
-   LOGOUT BUTTON
+   LOGOUT
 ========================= */
 
-$("#logout")?.addEventListener(
-  "click",
-  logout
-);
+$("#logout")
+  ?.addEventListener(
+    "click",
+    logout
+  );
+
 
 /* =========================
    MOBILE MENU
 ========================= */
 
-$("#menu")?.addEventListener(
-  "click",
-  () => {
+$("#menu")
+  ?.addEventListener(
+    "click",
+    () => {
 
-    $("#mobileNav")
-      ?.classList
-      .toggle("open");
-  }
-);
+      $("#mobileNav")
+        ?.classList
+        .toggle("open");
+    }
+  );
+
+
+function closeMobileMenu() {
+
+  $("#mobileNav")
+    ?.classList
+    .remove("open");
+}
+
 
 /* =========================
-   WHATSAPP
+   WHATSAPP BUTTONS
 ========================= */
 
-$("#whatsapp")?.addEventListener(
-  "click",
-  event => {
+$("#whatsapp")
+  ?.addEventListener(
+    "click",
+    event => {
 
-    event.preventDefault();
+      event.preventDefault();
 
-    const message =
-      encodeURIComponent(
-        "Hello Good News Shopping, I need help."
-      );
+      openWhatsApp();
+    }
+  );
 
-    const url =
-      `https://wa.me/${CONFIG.whatsappNumber}?text=${message}`;
 
-    /*
-      Use a normal browser navigation so WhatsApp
-      can open correctly on Android.
-    */
+$("#floatingWhatsApp")
+  ?.addEventListener(
+    "click",
+    openWhatsApp
+  );
 
-    window.location.href = url;
-  }
-);
+
+/* =========================
+   FLOATING CHAT
+========================= */
+
+$("#floatingChat")
+  ?.addEventListener(
+    "click",
+    () => {
+
+      /*
+        For now this opens the Contact page.
+        A real live customer-support chat system
+        can be connected later.
+      */
+
+      S.view =
+        "contact";
+
+      render();
+    }
+  );
+
 
 /* =========================
    TOP SEARCH
@@ -1869,36 +2854,136 @@ function performTopSearch() {
 
   if (!input) return;
 
+
   S.searchQuery =
     input.value.trim();
 
   S.shopCategory = "";
-  S.sort = "default";
-  S.view = "shop";
+
+  S.sort =
+    "default";
+
+  S.view =
+    "shop";
+
+
+  closeMobileMenu();
 
   render();
 }
 
-$("#searchBtn")?.addEventListener(
-  "click",
-  performTopSearch
-);
 
-$("#search")?.addEventListener(
-  "keydown",
-  event => {
+$("#searchBtn")
+  ?.addEventListener(
+    "click",
+    performTopSearch
+  );
 
-    if (event.key === "Enter") {
 
-      event.preventDefault();
+$("#search")
+  ?.addEventListener(
+    "keydown",
+    event => {
 
-      performTopSearch();
+      if (
+        event.key === "Enter"
+      ) {
+
+        event.preventDefault();
+
+        performTopSearch();
+      }
     }
-  }
-);
+  );
+
 
 /* =========================
-   CHECKOUT / PLACE ORDER
+   MOBILE SEARCH
+========================= */
+
+$("#bottomSearch")
+  ?.addEventListener(
+    "click",
+    () => {
+
+      const search =
+        $("#search");
+
+      if (search) {
+
+        search.focus();
+
+        window.scrollTo({
+          top: 0,
+          behavior: "smooth"
+        });
+
+      } else {
+
+        S.view =
+          "shop";
+
+        render();
+      }
+    }
+  );
+
+
+/* =========================
+   CART DRAWER BUTTON
+========================= */
+
+$("#closeDrawer")
+  ?.addEventListener(
+    "click",
+    closeDrawer
+  );
+
+
+$("#overlay")
+  ?.addEventListener(
+    "click",
+    closeDrawer
+  );
+
+
+/*
+  Clicking the top cart button opens
+  the actual cart page.
+*/
+
+document
+  .querySelectorAll(
+    '[data-view="cart"]'
+  )
+  .forEach(button => {
+
+    button.addEventListener(
+      "dblclick",
+      () => {
+        openDrawer();
+      }
+    );
+  });
+
+
+$("#drawerCheckout")
+  ?.addEventListener(
+    "click",
+    () => {
+
+      closeDrawer();
+
+      S.view =
+        "checkout";
+
+      render();
+    }
+  );
+
+
+/* =========================
+   CHECKOUT
 ========================= */
 
 document.addEventListener(
@@ -1912,7 +2997,9 @@ document.addEventListener(
       return;
     }
 
+
     event.preventDefault();
+
 
     if (!S.token) {
 
@@ -1923,17 +3010,22 @@ document.addEventListener(
       return;
     }
 
-    const submitButton =
+
+    const button =
       event.target.querySelector(
         'button[type="submit"]'
       );
 
-    if (submitButton) {
 
-      submitButton.disabled = true;
-      submitButton.textContent =
-        "Placing order...";
+    if (button) {
+
+      button.disabled = true;
+
+      button.innerHTML = `
+        <span>Placing order...</span>
+      `;
     }
+
 
     try {
 
@@ -1943,43 +3035,54 @@ document.addEventListener(
           {
             method: "POST",
 
-            body: JSON.stringify({
+            body:
+              JSON.stringify({
 
-              name:
-                $("#cName").value,
+                name:
+                  $("#cName")
+                    .value,
 
-              phone:
-                $("#cPhone").value,
+                phone:
+                  $("#cPhone")
+                    .value,
 
-              state:
-                $("#cState").value,
+                state:
+                  $("#cState")
+                    .value,
 
-              city:
-                $("#cCity").value,
+                city:
+                  $("#cCity")
+                    .value,
 
-              address:
-                $("#cAddress").value,
+                address:
+                  $("#cAddress")
+                    .value,
 
-              paymentMethod:
-                $("#cPayment").value,
+                paymentMethod:
+                  $("#cPayment")
+                    .value,
 
-              items:
-                S.cart.map(item => ({
-                  productId: item.id,
-                  qty: item.qty
-                }))
-            })
+                items:
+                  S.cart.map(
+                    item => ({
+                      productId:
+                        item.id,
+
+                      qty:
+                        item.qty
+                    })
+                  )
+              })
           }
         );
 
-      /*
-        Only clear the cart AFTER the server
-        confirms that the order was created.
-      */
 
       S.cart = [];
 
       save();
+
+      updateCounters();
+
 
       toast(
         "Order " +
@@ -1987,47 +3090,37 @@ document.addEventListener(
         " placed successfully"
       );
 
+
       S.view =
         "orders";
 
       render();
 
+
     } catch (error) {
 
-      /*
-        IMPORTANT:
-        Never automatically log the customer out here.
-        If the server has a real authentication problem,
-        tell the customer instead.
-      */
+      toast(
+        error.message ||
+        "Could not place order."
+      );
 
-      if (
-        error.status === 401 ||
-        error.status === 403
-      ) {
 
-        toast(
-          "Your login session needs to be refreshed. Please sign in again."
-        );
+      if (button) {
 
-      } else {
+        button.disabled = false;
 
-        toast(
-          error.message ||
-          "Could not place order. Please try again."
-        );
-      }
+        button.innerHTML = `
+          <span>Place order</span>
+          <i data-lucide="check"></i>
+        `;
 
-      if (submitButton) {
-
-        submitButton.disabled = false;
-
-        submitButton.textContent =
-          "Place order";
+        refreshIcons();
       }
     }
+
   }
 );
+
 
 /* =========================
    YEAR
@@ -2039,21 +3132,12 @@ if ($("#year")) {
     new Date().getFullYear();
 }
 
+
 /* =========================
-   START APPLICATION
+   START APP
 ========================= */
 
 (async () => {
-
-  /*
-    If a login session exists, try loading
-    the catalogue.
-
-    IMPORTANT:
-    A temporary catalogue/network error
-    should NOT automatically delete the
-    customer's saved login.
-  */
 
   if (
     S.user &&
@@ -2071,11 +3155,6 @@ if ($("#year")) {
         error
       );
 
-      /*
-        Keep the login session.
-        Show the app rather than forcing
-        the customer to sign in again.
-      */
 
       $("#auth")
         ?.classList
@@ -2085,14 +3164,19 @@ if ($("#year")) {
         ?.classList
         .remove("hidden");
 
+
       toast(
         "Could not load products. Please refresh and try again."
       );
+
     }
 
   } else {
 
     render();
   }
+
+
+  refreshIcons();
 
 })();
