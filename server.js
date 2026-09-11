@@ -1834,3 +1834,4 @@ app.listen(PORT, () => {
     `Products available: ${db.products.length}`
   );
 });
+
