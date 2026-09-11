@@ -13,13 +13,18 @@ app.use(express.json({ limit: "2mb" }));
 
 const PORT = process.env.PORT || 3000;
 const SECRET = process.env.JWT_SECRET || "change-me";
-const ADMIN_EMAIL = (
-  process.env.ADMIN_EMAIL || "admin@goodnewsshopping.com"
-).toLowerCase();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
+
+const ADMIN_EMAIL =
+  (process.env.ADMIN_EMAIL || "admin@goodnewsshopping.com").toLowerCase();
+
+const ADMIN_PASSWORD =
+  process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
 const DB =
   process.env.DB_FILE || path.join(__dirname, "data.json");
+
+const PEXELS_API_KEY =
+  process.env.PEXELS_API_KEY || "";
 
 let db = {
   users: [],
@@ -32,1321 +37,1628 @@ if (fs.existsSync(DB)) {
   try {
     db = JSON.parse(fs.readFileSync(DB, "utf8"));
   } catch (e) {
-    console.log("Could not read database. Creating a new one.");
+    console.log("Could not read data.json. Starting fresh.");
   }
 }
-
-if (!Array.isArray(db.users)) db.users = [];
-if (!Array.isArray(db.products)) db.products = [];
-if (!Array.isArray(db.orders)) db.orders = [];
-if (!Array.isArray(db.categories)) db.categories = [];
 
 function save() {
   fs.writeFileSync(DB, JSON.stringify(db, null, 2));
-}
-
-function uid(prefix) {
-  return (
-    prefix +
-    "-" +
-    crypto.randomBytes(5).toString("hex").toUpperCase()
-  );
-}
-
-function safeUser(u) {
-  return {
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    createdAt: u.createdAt
-  };
-}
-
-function makeToken(u) {
-  return jwt.sign(
-    {
-      id: u.id,
-      email: u.email,
-      role: u.role
-    },
-    SECRET,
-    { expiresIn: "7d" }
-  );
-}
-
-function auth(req, res, next) {
-  const header = req.headers.authorization || "";
-
-  try {
-    const token = header.replace("Bearer ", "");
-    req.user = jwt.verify(token, SECRET);
-    next();
-  } catch {
-    res.status(401).json({
-      message: "Please sign in."
-    });
-  }
-}
-
-function admin(req, res, next) {
-  if (!req.user || req.user.role !== "admin") {
-    return res.status(403).json({
-      message: "Admin only."
-    });
-  }
-
-  next();
 }
 
 /* =========================================================
    CATEGORIES
 ========================================================= */
 
-const categoryList = [
-  ["Phones & Tablets", "📱"],
-  ["Computing", "💻"],
-  ["Electronics", "🎧"],
-  ["TV & Audio", "📺"],
-  ["Fashion", "👕"],
-  ["Shoes", "👟"],
-  ["Beauty", "✨"],
-  ["Home", "🏠"],
-  ["Appliances", "🧺"],
-  ["Groceries", "🛒"],
-  ["Gaming", "🎮"],
-  ["Accessories", "⌚"],
-  ["Baby", "🍼"],
-  ["Sports", "⚽"],
-  ["Books", "📚"],
-  ["Office", "🖨️"]
+const CATEGORY_SEED = [
+  { name: "Phones & Tablets", icon: "📱" },
+  { name: "Computing", icon: "💻" },
+  { name: "Electronics", icon: "🎧" },
+  { name: "TV & Audio", icon: "📺" },
+  { name: "Fashion", icon: "👕" },
+  { name: "Shoes", icon: "👟" },
+  { name: "Beauty", icon: "✨" },
+  { name: "Home", icon: "🏠" },
+  { name: "Appliances", icon: "🧺" },
+  { name: "Groceries", icon: "🛒" },
+  { name: "Gaming", icon: "🎮" },
+  { name: "Accessories", icon: "⌚" },
+  { name: "Baby", icon: "🍼" },
+  { name: "Sports", icon: "⚽" },
+  { name: "Books", icon: "📚" },
+  { name: "Office", icon: "🖨️" },
+  { name: "Tools & Hardware", icon: "🛠️" },
+  { name: "Automotive", icon: "🚗" },
+  { name: "Travel", icon: "🧳" },
+  { name: "Smart Home", icon: "🏠" },
+  { name: "Pets", icon: "🐾" },
+  { name: "Music", icon: "🎵" }
 ];
 
-db.categories = categoryList.map(x => ({
-  name: x[0],
-  icon: x[1]
-}));
-
 /* =========================================================
-   PRODUCT NAMES
+   400 PRODUCTS
 ========================================================= */
 
-const productsByCategory = {
+const PRODUCT_GROUPS = [
 
-  "Phones & Tablets": [
-    "Smartphone 128GB",
-    "Smartphone 256GB",
-    "Android Smartphone",
-    "5G Smartphone",
-    "Budget Smartphone",
-    "Camera Smartphone",
-    "Gaming Smartphone",
-    "Foldable Smartphone",
-    "Mini Smartphone",
-    "Premium Smartphone",
-    "Tablet 8-inch",
-    "Tablet 10-inch",
-    "Tablet 11-inch",
-    "Android Tablet",
-    "Kids Tablet",
-    "Drawing Tablet",
-    "Study Tablet",
-    "Wi-Fi Tablet",
-    "Tablet Keyboard",
-    "Tablet Case",
-    "Fast Phone Charger",
-    "Wireless Phone Charger",
-    "Phone Power Bank",
-    "USB-C Cable",
-    "Phone Stand"
-  ],
+  {
+    query: "smartphone product photography",
+    category: "Phones & Tablets",
+    names: [
+      "iPhone Style 5G Smartphone",
+      "Android Pro 256GB Smartphone",
+      "Budget Android Smartphone",
+      "Foldable Smartphone",
+      "Gaming Smartphone",
+      "Camera Phone 200MP",
+      "Compact Mini Smartphone",
+      "Rugged Outdoor Smartphone",
+      "Business Smartphone",
+      "Selfie Camera Smartphone"
+    ]
+  },
 
-  "Computing": [
-    "Student Laptop",
-    "Business Laptop",
-    "Gaming Laptop",
-    "Slim Laptop",
-    "15-inch Laptop",
-    "14-inch Laptop",
-    "2-in-1 Laptop",
-    "Professional Laptop",
-    "Budget Laptop",
-    "Premium Laptop",
-    "Desktop Computer",
-    "Mini Desktop PC",
-    "All-in-One Computer",
-    "Computer Monitor",
-    "27-inch Monitor",
-    "24-inch Monitor",
-    "Mechanical Keyboard",
-    "Wireless Keyboard",
-    "Gaming Mouse",
-    "Wireless Mouse",
-    "Laptop Stand",
-    "Laptop Backpack",
-    "USB Hub",
-    "External SSD",
-    "Webcam"
-  ],
+  {
+    query: "tablet product photography",
+    category: "Phones & Tablets",
+    names: [
+      "10-inch Android Tablet",
+      "11-inch Pro Tablet",
+      "Kids Learning Tablet",
+      "Drawing Tablet",
+      "Student Tablet 128GB",
+      "Compact 8-inch Tablet",
+      "Keyboard Tablet Bundle",
+      "4G LTE Tablet",
+      "Premium OLED Tablet",
+      "Budget Tablet"
+    ]
+  },
 
-  "Electronics": [
-    "Bluetooth Speaker",
-    "Portable Speaker",
-    "Wireless Earbuds",
-    "Noise Cancelling Headphones",
-    "Over-Ear Headphones",
-    "Neckband Earphones",
-    "Digital Camera",
-    "Action Camera",
-    "Ring Light",
-    "LED Desk Light",
-    "Smart Plug",
-    "Power Strip",
-    "Extension Box",
-    "Rechargeable Fan",
-    "Electric Kettle",
-    "Hair Dryer",
-    "Electric Shaver",
-    "Body Massager",
-    "Portable Projector",
-    "Voice Recorder",
-    "Wireless Microphone",
-    "FM Radio",
-    "Digital Alarm Clock",
-    "Power Bank",
-    "USB Fan"
-  ],
+  {
+    query: "laptop computer product photography",
+    category: "Computing",
+    names: [
+      "15-inch Core Laptop",
+      "14-inch Student Laptop",
+      "13-inch Ultrabook",
+      "Business Laptop 16GB RAM",
+      "Gaming Laptop RTX",
+      "Slim Office Laptop",
+      "2-in-1 Touchscreen Laptop",
+      "Creator Laptop",
+      "Budget Windows Laptop",
+      "Premium Work Laptop"
+    ]
+  },
 
-  "TV & Audio": [
-    "32-inch Smart TV",
-    "40-inch Smart TV",
-    "43-inch Smart TV",
-    "50-inch Smart TV",
-    "55-inch Smart TV",
-    "65-inch Smart TV",
-    "75-inch Smart TV",
-    "4K LED TV",
-    "4K QLED TV",
-    "OLED Smart TV",
-    "Android TV Box",
-    "Streaming Stick",
-    "Home Theatre System",
-    "Soundbar System",
-    "Bluetooth Sound System",
-    "Subwoofer",
-    "Digital Decoder",
-    "TV Wall Mount",
-    "TV Stand",
-    "HDMI Cable",
-    "Optical Audio Cable",
-    "Satellite Receiver",
-    "Mini Projector",
-    "Projector Screen",
-    "Portable TV"
-  ],
+  {
+    query: "computer monitor product photography",
+    category: "Computing",
+    names: [
+      "24-inch Full HD Monitor",
+      "27-inch IPS Monitor",
+      "32-inch Curved Monitor",
+      "Gaming Monitor 165Hz",
+      "Ultrawide Monitor",
+      "4K Professional Monitor",
+      "Portable USB Monitor",
+      "24-inch Office Monitor",
+      "27-inch Gaming Monitor",
+      "Vertical Monitor"
+    ]
+  },
 
-  "Fashion": [
-    "Men's T-Shirt",
-    "Women's T-Shirt",
-    "Men's Shirt",
-    "Women's Blouse",
-    "Men's Trousers",
-    "Women's Trousers",
-    "Men's Jeans",
-    "Women's Jeans",
-    "Men's Hoodie",
-    "Women's Hoodie",
-    "Men's Jacket",
-    "Women's Jacket",
-    "Men's Shorts",
-    "Women's Shorts",
-    "Men's Suit",
-    "Women's Dress",
-    "Maxi Dress",
-    "Skirt",
-    "Polo Shirt",
-    "Sports Jersey",
-    "Traditional Outfit",
-    "Cardigan",
-    "Sweater",
-    "Nightwear Set",
-    "Clothing Pack"
-  ],
+  {
+    query: "computer accessories product photography",
+    category: "Computing",
+    names: [
+      "Wireless Keyboard",
+      "Mechanical Gaming Keyboard",
+      "Wireless Mouse",
+      "Ergonomic Mouse",
+      "USB-C Hub",
+      "Laptop Stand",
+      "Webcam Full HD",
+      "USB Flash Drive 128GB",
+      "External SSD 1TB",
+      "Laptop Cooling Pad"
+    ]
+  },
 
-  "Shoes": [
-    "Men's Sneakers",
-    "Women's Sneakers",
-    "Running Shoes",
-    "Football Boots",
-    "Basketball Shoes",
-    "Canvas Shoes",
-    "Casual Shoes",
-    "Formal Shoes",
-    "Loafers",
-    "Slippers",
-    "Slides",
-    "Sandals",
-    "High Heels",
-    "Flat Shoes",
-    "School Shoes",
-    "Safety Boots",
-    "Hiking Shoes",
-    "Tennis Shoes",
-    "Training Shoes",
-    "Walking Shoes",
-    "Children's Sneakers",
-    "Children's Sandals",
-    "Leather Shoes",
-    "Sports Slides",
-    "Fashion Boots"
-  ],
+  {
+    query: "headphones earbuds product photography",
+    category: "Electronics",
+    names: [
+      "Wireless Noise Cancelling Headphones",
+      "Bluetooth Over-Ear Headphones",
+      "Sport Bluetooth Earbuds",
+      "True Wireless Earbuds",
+      "Gaming Headset",
+      "Studio Monitor Headphones",
+      "Kids Wireless Headphones",
+      "USB-C Earphones",
+      "Bass Boost Headphones",
+      "Premium Bluetooth Headphones"
+    ]
+  },
 
-  "Beauty": [
-    "Face Cleanser",
-    "Face Cream",
-    "Body Lotion",
-    "Body Wash",
-    "Shampoo",
-    "Conditioner",
-    "Hair Oil",
-    "Hair Gel",
-    "Hair Brush",
-    "Hair Dryer Brush",
-    "Perfume",
-    "Body Spray",
-    "Deodorant",
-    "Lip Gloss",
-    "Lipstick",
-    "Makeup Kit",
-    "Foundation",
-    "Face Powder",
-    "Mascara",
-    "Eyeliner",
-    "Nail Polish",
-    "Nail Care Set",
-    "Sunscreen",
-    "Beauty Mirror",
-    "Makeup Brush Set"
-  ],
+  {
+    query: "speakers audio product photography",
+    category: "Electronics",
+    names: [
+      "Portable Bluetooth Speaker",
+      "Smart Home Speaker",
+      "Party Bluetooth Speaker",
+      "Mini Wireless Speaker",
+      "Soundbar Speaker",
+      "Bookshelf Speakers",
+      "Waterproof Outdoor Speaker",
+      "Computer Speaker Set",
+      "Bass Bluetooth Speaker",
+      "Home Audio Speaker"
+    ]
+  },
 
-  "Home": [
-    "Modern Sofa",
-    "Office Chair",
-    "Dining Table",
-    "Dining Chair",
-    "Bed Frame",
-    "Mattress",
-    "Bedside Table",
-    "Wardrobe",
-    "Bookshelf",
-    "TV Stand",
-    "Coffee Table",
-    "Study Desk",
-    "Curtains",
-    "Floor Rug",
-    "Wall Mirror",
-    "Storage Box",
-    "Shoe Rack",
-    "Laundry Basket",
-    "Pillow Set",
-    "Bedsheet Set",
-    "Blanket",
-    "Duvet",
-    "Table Lamp",
-    "Floor Lamp",
-    "Wall Clock"
-  ],
+  {
+    query: "television product photography",
+    category: "TV & Audio",
+    names: [
+      "32-inch Smart TV",
+      "43-inch 4K Smart TV",
+      "50-inch 4K TV",
+      "55-inch OLED TV",
+      "65-inch Smart TV",
+      "75-inch 4K TV",
+      "32-inch LED TV",
+      "43-inch Android TV",
+      "55-inch QLED TV",
+      "Projector Home Cinema"
+    ]
+  },
 
-  "Appliances": [
-    "Refrigerator",
-    "Washing Machine",
-    "Microwave Oven",
-    "Blender",
-    "Air Fryer",
-    "Electric Cooker",
-    "Gas Cooker",
-    "Rice Cooker",
-    "Toaster",
-    "Sandwich Maker",
-    "Electric Iron",
-    "Standing Fan",
-    "Table Fan",
-    "Air Conditioner",
-    "Water Dispenser",
-    "Dishwasher",
-    "Freezer",
-    "Food Processor",
-    "Juicer",
-    "Coffee Maker",
-    "Electric Grill",
-    "Slow Cooker",
-    "Vacuum Cleaner",
-    "Steam Mop",
-    "Hand Mixer"
-  ],
+  {
+    query: "men clothing product photography",
+    category: "Fashion",
+    names: [
+      "Men's Polo Shirt",
+      "Men's Casual T-Shirt",
+      "Men's Long Sleeve Shirt",
+      "Men's Formal Shirt",
+      "Men's Denim Shirt",
+      "Men's Hoodie",
+      "Men's Sweatshirt",
+      "Men's Chinos",
+      "Men's Cargo Trousers",
+      "Men's Formal Trousers"
+    ]
+  },
 
-  "Groceries": [
-    "Rice 5kg",
-    "Rice 10kg",
-    "Beans 1kg",
-    "Spaghetti Pack",
-    "Macaroni Pack",
-    "Instant Noodles",
-    "Cooking Oil 1L",
-    "Cooking Oil 2L",
-    "Chocolate Drink",
-    "Corn Flakes",
-    "Sugar 1kg",
-    "Salt 1kg",
-    "Tomato Paste",
-    "Biscuit Pack",
-    "Tea Pack",
-    "Milk Powder",
-    "Oats Pack",
-    "Peanut Butter",
-    "Mayonnaise",
-    "Ketchup",
-    "Breakfast Cereal",
-    "Bottled Water",
-    "Fruit Juice",
-    "Chocolate Bar",
-    "Canned Sardines"
-  ],
+  {
+    query: "women clothing product photography",
+    category: "Fashion",
+    names: [
+      "Women's Blouse",
+      "Women's Casual T-Shirt",
+      "Women's Maxi Dress",
+      "Women's Summer Dress",
+      "Women's Office Dress",
+      "Women's Jeans",
+      "Women's Palazzo Trousers",
+      "Women's Skirt",
+      "Women's Hoodie",
+      "Women's Cardigan"
+    ]
+  },
 
-  "Gaming": [
-    "Gaming Console",
-    "Game Controller",
-    "Wireless Controller",
-    "Gaming Headset",
-    "Gaming Keyboard",
-    "Gaming Mouse",
-    "Gaming Monitor",
-    "Gaming Chair",
-    "Console Charging Dock",
-    "Console Carry Case",
-    "Racing Wheel",
-    "Gaming Microphone",
-    "VR Headset",
-    "Game Storage Drive",
-    "Controller Grip",
-    "Gaming Desk",
-    "Gaming Mouse Pad",
-    "RGB Light Strip",
-    "Game Capture Card",
-    "Portable Gaming Device",
-    "Gamepad Holder",
-    "Console Cooling Fan",
-    "Gaming Speakers",
-    "Arcade Stick",
-    "Gaming Cable"
-  ],
+  {
+    query: "fashion dresses clothing product photography",
+    category: "Fashion",
+    names: [
+      "Floral Midi Dress",
+      "Elegant Evening Dress",
+      "Cocktail Dress",
+      "Denim Dress",
+      "Wrap Dress",
+      "Pleated Dress",
+      "Long Sleeve Dress",
+      "Casual Shirt Dress",
+      "Satin Dress",
+      "Knit Dress"
+    ]
+  },
 
-  "Accessories": [
-    "Wrist Watch",
-    "Smart Watch",
-    "Leather Watch",
-    "Digital Watch",
-    "Necklace",
-    "Pendant Necklace",
-    "Bracelet",
-    "Bangle",
-    "Earrings",
-    "Fashion Ring",
-    "Sunglasses",
-    "Reading Glasses",
-    "Handbag",
-    "Shoulder Bag",
-    "Crossbody Bag",
-    "Backpack",
-    "School Bag",
-    "Travel Backpack",
-    "Wallet",
-    "Card Holder",
-    "Leather Belt",
-    "Baseball Cap",
-    "Fashion Hat",
-    "Scarf",
-    "Travel Bag"
-  ],
+  {
+    query: "shoes sneakers product photography",
+    category: "Shoes",
+    names: [
+      "Men's Running Sneakers",
+      "Women's Running Sneakers",
+      "Classic White Sneakers",
+      "Black Casual Sneakers",
+      "High Top Sneakers",
+      "Training Shoes",
+      "Walking Shoes",
+      "Canvas Sneakers",
+      "Lightweight Sport Shoes",
+      "Premium Leather Sneakers"
+    ]
+  },
 
-  "Baby": [
-    "Baby Stroller",
-    "Baby Carrier",
-    "Baby Feeding Bottle",
-    "Baby Clothes Set",
-    "Baby Shoes",
-    "Baby Blanket",
-    "Baby Bath Set",
-    "Baby Diapers",
-    "Baby Wipes",
-    "Baby Shampoo",
-    "Baby Lotion",
-    "Baby Powder",
-    "Baby Bib",
-    "Baby Feeding Set",
-    "Baby Monitor",
-    "Baby Walker",
-    "Baby Rocking Chair",
-    "Baby Changing Mat",
-    "Baby Pillow",
-    "Baby Sleeping Bag",
-    "Baby Toy Set",
-    "Baby Bath Tub",
-    "Baby Safety Gate",
-    "Baby Bottle Warmer",
-    "Baby Backpack"
-  ],
+  {
+    query: "sandals slippers footwear product photography",
+    category: "Shoes",
+    names: [
+      "Men's Leather Sandals",
+      "Women's Flat Sandals",
+      "Beach Slippers",
+      "Home Slippers",
+      "Slides Sandals",
+      "Sport Slides",
+      "Women's Heeled Sandals",
+      "Men's Casual Slides",
+      "Comfort Sandals",
+      "Kids Sandals"
+    ]
+  },
 
-  "Sports": [
-    "Football",
-    "Basketball",
-    "Tennis Racket",
-    "Badminton Racket",
-    "Volleyball",
-    "Football Jersey",
-    "Sports Shorts",
-    "Running Shirt",
-    "Sports Trousers",
-    "Gym Gloves",
-    "Yoga Mat",
-    "Skipping Rope",
-    "Dumbbell Set",
-    "Resistance Bands",
-    "Exercise Bike",
-    "Treadmill",
-    "Punching Bag",
-    "Boxing Gloves",
-    "Sports Water Bottle",
-    "Sports Bag",
-    "Football Boots",
-    "Training Cones",
-    "Goal Net",
-    "Tennis Balls",
-    "Sports Watch"
-  ],
+  {
+    query: "handbag backpack accessories product photography",
+    category: "Accessories",
+    names: [
+      "Women's Handbag",
+      "Leather Tote Bag",
+      "Crossbody Bag",
+      "Shoulder Bag",
+      "Mini Handbag",
+      "Travel Backpack",
+      "School Backpack",
+      "Laptop Backpack",
+      "Sports Backpack",
+      "Fashion Backpack"
+    ]
+  },
 
-  "Books": [
-    "Novel Book",
-    "Business Book",
-    "Law Book",
-    "History Book",
-    "Science Book",
-    "Mathematics Book",
-    "English Grammar Book",
-    "Dictionary",
-    "Study Guide",
-    "Exam Practice Book",
-    "Children's Story Book",
-    "Cookbook",
-    "Biography Book",
-    "Self Development Book",
-    "Leadership Book",
-    "Finance Book",
-    "Technology Book",
-    "Computer Science Book",
-    "Programming Book",
-    "Christian Book",
-    "Poetry Book",
-    "Notebook Journal",
-    "Sketch Book",
-    "Activity Book",
-    "Workbook"
-  ],
+  {
+    query: "watches jewelry accessories product photography",
+    category: "Accessories",
+    names: [
+      "Men's Wrist Watch",
+      "Women's Wrist Watch",
+      "Digital Sports Watch",
+      "Smart Watch",
+      "Classic Leather Watch",
+      "Stainless Steel Watch",
+      "Fashion Necklace",
+      "Pendant Necklace",
+      "Bracelet",
+      "Fashion Earrings"
+    ]
+  },
 
-  "Office": [
-    "Laser Printer",
-    "Inkjet Printer",
-    "Printer Ink",
-    "Printer Paper",
-    "A4 Paper Pack",
-    "Stapler",
-    "Staple Pins",
-    "Office Scissors",
-    "Desk Organizer",
-    "File Folder",
-    "Document Folder",
-    "Calculator",
-    "Whiteboard",
-    "Whiteboard Marker",
-    "Office Desk",
-    "Office Chair",
-    "Desk Lamp",
-    "Paper Shredder",
-    "Laminator",
-    "Paper Cutter",
-    "Sticky Notes",
-    "Envelope Pack",
-    "Pen Set",
-    "Pencil Set",
-    "USB Flash Drive"
-  ]
-};
+  {
+    query: "beauty skincare product photography",
+    category: "Beauty",
+    names: [
+      "Face Moisturizer",
+      "Hydrating Face Cream",
+      "Facial Cleanser",
+      "Sunscreen Lotion",
+      "Body Lotion",
+      "Lip Balm",
+      "Face Serum",
+      "Body Scrub",
+      "Hand Cream",
+      "Aloe Vera Gel"
+    ]
+  },
 
-/* =========================================================
-   PRODUCT VISUALS
-   Each product type gets a different illustration.
-========================================================= */
+  {
+    query: "beauty makeup product photography",
+    category: "Beauty",
+    names: [
+      "Foundation Makeup",
+      "Compact Powder",
+      "Lipstick",
+      "Lip Gloss",
+      "Mascara",
+      "Eyeliner",
+      "Eyeshadow Palette",
+      "Makeup Brush Set",
+      "Makeup Sponge Set",
+      "Blush Makeup"
+    ]
+  },
 
-function visualFor(name, category) {
-  const n = name.toLowerCase();
+  {
+    query: "hair beauty product photography",
+    category: "Beauty",
+    names: [
+      "Shampoo",
+      "Conditioner",
+      "Hair Oil",
+      "Hair Cream",
+      "Hair Gel",
+      "Hair Brush",
+      "Hair Dryer",
+      "Hair Straightener",
+      "Curling Iron",
+      "Electric Hair Clipper"
+    ]
+  },
 
-  if (n.includes("trouser") || n.includes("jeans") || n.includes("shorts")) return "👖";
-  if (n.includes("t-shirt") || n.includes("shirt") || n.includes("blouse") || n.includes("jersey")) return "👕";
-  if (n.includes("dress")) return "👗";
-  if (n.includes("skirt")) return "👚";
-  if (n.includes("hoodie")) return "🧥";
-  if (n.includes("jacket")) return "🧥";
-  if (n.includes("suit")) return "🤵";
-  if (n.includes("sweater") || n.includes("cardigan")) return "🧶";
-  if (n.includes("nightwear")) return "🛌";
+  {
+    query: "home furniture product photography",
+    category: "Home",
+    names: [
+      "Modern Sofa",
+      "Two-Seater Sofa",
+      "Accent Chair",
+      "Coffee Table",
+      "Dining Table",
+      "Dining Chair",
+      "Bedside Table",
+      "Bookshelf",
+      "TV Stand",
+      "Office Desk"
+    ]
+  },
 
-  if (n.includes("sneaker") || n.includes("shoe")) return "👟";
-  if (n.includes("boot")) return "🥾";
-  if (n.includes("heel")) return "👠";
-  if (n.includes("slipper") || n.includes("slide")) return "🩴";
-  if (n.includes("sandal")) return "👡";
+  {
+    query: "bedroom bedding product photography",
+    category: "Home",
+    names: [
+      "Queen Bed Frame",
+      "King Bed Frame",
+      "Memory Foam Mattress",
+      "Pillow Set",
+      "Bedsheet Set",
+      "Duvet Set",
+      "Comforter",
+      "Wardrobe",
+      "Bedroom Mirror",
+      "Bedside Lamp"
+    ]
+  },
 
-  if (n.includes("handbag") || n.includes("shoulder bag")) return "👜";
-  if (n.includes("school bag")) return "🎒";
-  if (n.includes("backpack")) return "🎒";
-  if (n.includes("wallet")) return "👛";
-  if (n.includes("necklace") || n.includes("pendant")) return "📿";
-  if (n.includes("bracelet") || n.includes("bangle")) return "📿";
-  if (n.includes("earring")) return "💎";
-  if (n.includes("ring")) return "💍";
-  if (n.includes("watch")) return "⌚";
-  if (n.includes("sunglasses") || n.includes("glasses")) return "🕶️";
-  if (n.includes("belt")) return "👔";
-  if (n.includes("cap") || n.includes("hat")) return "🧢";
-  if (n.includes("scarf")) return "🧣";
+  {
+    query: "kitchen cookware product photography",
+    category: "Home",
+    names: [
+      "Nonstick Frying Pan",
+      "Stainless Steel Pot Set",
+      "Saucepan",
+      "Cooking Utensil Set",
+      "Knife Set",
+      "Cutting Board",
+      "Mixing Bowl Set",
+      "Food Storage Containers",
+      "Electric Kettle",
+      "Kitchen Scale"
+    ]
+  },
 
-  if (n.includes("phone") || n.includes("smartphone")) return "📱";
-  if (n.includes("tablet")) return "📲";
-  if (n.includes("charger")) return "🔌";
-  if (n.includes("power bank")) return "🔋";
-  if (n.includes("usb-c") || n.includes("cable")) return "🔗";
-  if (n.includes("stand")) return "🗜️";
+  {
+    query: "kitchen appliances product photography",
+    category: "Appliances",
+    names: [
+      "Microwave Oven",
+      "Air Fryer",
+      "Blender",
+      "Food Processor",
+      "Toaster",
+      "Rice Cooker",
+      "Electric Stove",
+      "Sandwich Maker",
+      "Coffee Maker",
+      "Juicer"
+    ]
+  },
 
-  if (n.includes("laptop")) return "💻";
-  if (n.includes("computer") || n.includes("desktop")) return "🖥️";
-  if (n.includes("monitor")) return "🖥️";
-  if (n.includes("keyboard")) return "⌨️";
-  if (n.includes("mouse")) return "🖱️";
-  if (n.includes("webcam")) return "📷";
-  if (n.includes("ssd") || n.includes("storage drive")) return "💾";
-  if (n.includes("hub")) return "🔌";
+  {
+    query: "home appliances product photography",
+    category: "Appliances",
+    names: [
+      "Standing Fan",
+      "Rechargeable Fan",
+      "Air Conditioner",
+      "Washing Machine",
+      "Refrigerator",
+      "Vacuum Cleaner",
+      "Steam Iron",
+      "Electric Iron",
+      "Water Dispenser",
+      "Dehumidifier"
+    ]
+  },
 
-  if (n.includes("headphone") || n.includes("earbud") || n.includes("earphone")) return "🎧";
-  if (n.includes("speaker") || n.includes("soundbar")) return "🔊";
-  if (n.includes("camera")) return "📷";
-  if (n.includes("microphone")) return "🎙️";
-  if (n.includes("radio")) return "📻";
-  if (n.includes("clock")) return "⏰";
-  if (n.includes("fan")) return "🌀";
-  if (n.includes("kettle")) return "🫖";
-  if (n.includes("dryer")) return "💨";
-  if (n.includes("shaver")) return "🪒";
-  if (n.includes("projector")) return "📽️";
-  if (n.includes("ring light") || n.includes("light")) return "💡";
-  if (n.includes("recorder")) return "🎙️";
-  if (n.includes("plug") || n.includes("extension") || n.includes("power strip")) return "🔌";
+  {
+    query: "lighting home product photography",
+    category: "Home",
+    names: [
+      "LED Desk Lamp",
+      "Table Lamp",
+      "Floor Lamp",
+      "Ceiling Light",
+      "Smart LED Bulb",
+      "Decorative Lamp",
+      "Bedside Reading Lamp",
+      "Rechargeable Lantern",
+      "Outdoor Wall Light",
+      "LED Strip Light"
+    ]
+  },
 
-  if (n.includes("tv")) return "📺";
-  if (n.includes("decoder") || n.includes("receiver") || n.includes("tv box")) return "📡";
-  if (n.includes("hdmi") || n.includes("optical audio")) return "🔗";
-  if (n.includes("subwoofer")) return "🔊";
-  if (n.includes("theatre")) return "🎬";
+  {
+    query: "groceries packaged food product photography",
+    category: "Groceries",
+    names: [
+      "Breakfast Cereal",
+      "Oatmeal Pack",
+      "Spaghetti Pack",
+      "Macaroni Pack",
+      "Instant Noodles",
+      "Pasta Sauce",
+      "Peanut Butter",
+      "Chocolate Spread",
+      "Biscuits Pack",
+      "Corn Flakes"
+    ]
+  },
 
-  if (n.includes("sofa")) return "🛋️";
-  if (n.includes("chair")) return "🪑";
-  if (n.includes("table") || n.includes("desk")) return "🪵";
-  if (n.includes("bed")) return "🛏️";
-  if (n.includes("mattress")) return "🛏️";
-  if (n.includes("wardrobe")) return "🚪";
-  if (n.includes("bookshelf")) return "📚";
-  if (n.includes("curtain")) return "🪟";
-  if (n.includes("rug")) return "🧶";
-  if (n.includes("mirror")) return "🪞";
-  if (n.includes("basket")) return "🧺";
-  if (n.includes("pillow")) return "🛏️";
-  if (n.includes("blanket") || n.includes("duvet") || n.includes("bedsheet")) return "🛌";
-  if (n.includes("lamp")) return "💡";
+  {
+    query: "groceries drinks product photography",
+    category: "Groceries",
+    names: [
+      "Bottled Water",
+      "Fruit Juice",
+      "Orange Drink",
+      "Apple Juice",
+      "Malt Drink",
+      "Soft Drink Bottle",
+      "Energy Drink",
+      "Iced Tea",
+      "Milk Carton",
+      "Chocolate Drink"
+    ]
+  },
 
-  if (n.includes("refrigerator") || n.includes("freezer")) return "🧊";
-  if (n.includes("washing machine")) return "🧺";
-  if (n.includes("microwave")) return "♨️";
-  if (n.includes("blender")) return "🥤";
-  if (n.includes("air fryer")) return "🍟";
-  if (n.includes("cooker")) return "🍳";
-  if (n.includes("rice cooker")) return "🍚";
-  if (n.includes("toaster")) return "🍞";
-  if (n.includes("iron")) return "👔";
-  if (n.includes("air conditioner")) return "❄️";
-  if (n.includes("water dispenser")) return "🚰";
-  if (n.includes("dishwasher")) return "🫧";
-  if (n.includes("juicer")) return "🧃";
-  if (n.includes("coffee")) return "☕";
-  if (n.includes("grill")) return "🍖";
-  if (n.includes("vacuum")) return "🧹";
-  if (n.includes("mop")) return "🧽";
-  if (n.includes("mixer")) return "🥣";
+  {
+    query: "gaming console product photography",
+    category: "Gaming",
+    names: [
+      "PlayStation Console",
+      "Xbox Console",
+      "Nintendo Switch",
+      "Gaming Controller",
+      "Wireless Gamepad",
+      "Gaming Steering Wheel",
+      "VR Headset",
+      "Gaming Keyboard",
+      "Gaming Mouse",
+      "Gaming Chair"
+    ]
+  },
 
-  if (n.includes("rice")) return "🍚";
-  if (n.includes("beans")) return "🫘";
-  if (n.includes("spaghetti") || n.includes("macaroni")) return "🍝";
-  if (n.includes("noodle")) return "🍜";
-  if (n.includes("oil")) return "🫗";
-  if (n.includes("chocolate")) return "🍫";
-  if (n.includes("cereal") || n.includes("corn flakes") || n.includes("oats")) return "🥣";
-  if (n.includes("sugar")) return "🍬";
-  if (n.includes("salt")) return "🧂";
-  if (n.includes("tomato")) return "🍅";
-  if (n.includes("biscuit")) return "🍪";
-  if (n.includes("tea")) return "🍵";
-  if (n.includes("milk")) return "🥛";
-  if (n.includes("peanut")) return "🥜";
-  if (n.includes("mayonnaise") || n.includes("ketchup")) return "🫙";
-  if (n.includes("water")) return "💧";
-  if (n.includes("juice")) return "🧃";
-  if (n.includes("sardine")) return "🥫";
+  {
+    query: "baby products product photography",
+    category: "Baby",
+    names: [
+      "Baby Stroller",
+      "Baby High Chair",
+      "Baby Car Seat",
+      "Baby Cot",
+      "Baby Blanket",
+      "Baby Bottle Set",
+      "Baby Feeding Set",
+      "Baby Diaper Bag",
+      "Baby Bath Tub",
+      "Baby Carrier"
+    ]
+  },
 
-  if (n.includes("console")) return "🎮";
-  if (n.includes("controller")) return "🎮";
-  if (n.includes("gaming")) return "🕹️";
-  if (n.includes("racing wheel")) return "🏎️";
-  if (n.includes("vr headset")) return "🥽";
-  if (n.includes("arcade")) return "🕹️";
+  {
+    query: "sports equipment product photography",
+    category: "Sports",
+    names: [
+      "Football",
+      "Basketball",
+      "Volleyball",
+      "Tennis Racket",
+      "Badminton Racket",
+      "Boxing Gloves",
+      "Skipping Rope",
+      "Yoga Mat",
+      "Dumbbell Set",
+      "Sports Water Bottle"
+    ]
+  },
 
-  if (n.includes("baby")) return "👶";
-  if (n.includes("diaper")) return "🧷";
-  if (n.includes("stroller")) return "👶";
-  if (n.includes("bottle")) return "🍼";
-  if (n.includes("toy")) return "🧸";
-  if (n.includes("bib")) return "👶";
+  {
+    query: "office stationery product photography",
+    category: "Office",
+    names: [
+      "Ballpoint Pen Set",
+      "Notebook",
+      "A4 Writing Pad",
+      "Marker Set",
+      "Stapler",
+      "Paper Punch",
+      "Desk Organizer",
+      "Calculator",
+      "Printer",
+      "Document Scanner"
+    ]
+  },
 
-  if (n.includes("football")) return "⚽";
-  if (n.includes("basketball")) return "🏀";
-  if (n.includes("tennis")) return "🎾";
-  if (n.includes("badminton")) return "🏸";
-  if (n.includes("volleyball")) return "🏐";
-  if (n.includes("yoga")) return "🧘";
-  if (n.includes("dumbbell")) return "🏋️";
-  if (n.includes("treadmill") || n.includes("bike")) return "🏃";
-  if (n.includes("boxing") || n.includes("punching")) return "🥊";
-  if (n.includes("water bottle")) return "🥤";
+  {
+    query: "books reading product photography",
+    category: "Books",
+    names: [
+      "Business Book",
+      "English Dictionary",
+      "Study Textbook",
+      "Notebook Journal",
+      "Motivational Book",
+      "Novel Book",
+      "Cookbook",
+      "Children's Story Book",
+      "Law Textbook",
+      "Exam Preparation Book"
+    ]
+  },
 
-  if (n.includes("book") || n.includes("dictionary") || n.includes("workbook")) return "📚";
-  if (n.includes("notebook") || n.includes("journal")) return "📓";
-  if (n.includes("sketch")) return "🎨";
-  if (n.includes("pen")) return "🖊️";
-  if (n.includes("pencil")) return "✏️";
+  {
+    query: "tools hardware product photography",
+    category: "Tools & Hardware",
+    names: [
+      "Screwdriver Set",
+      "Hammer",
+      "Wrench Set",
+      "Cordless Drill",
+      "Tape Measure",
+      "Pliers Set",
+      "Toolbox",
+      "Utility Knife",
+      "Spirit Level",
+      "Hand Saw"
+    ]
+  },
 
-  if (n.includes("printer")) return "🖨️";
-  if (n.includes("paper")) return "📄";
-  if (n.includes("stapler")) return "📎";
-  if (n.includes("scissors")) return "✂️";
-  if (n.includes("folder")) return "📁";
-  if (n.includes("calculator")) return "🧮";
-  if (n.includes("whiteboard")) return "📝";
-  if (n.includes("shredder")) return "🗑️";
-  if (n.includes("sticky notes")) return "🗒️";
-  if (n.includes("flash drive")) return "💾";
+  {
+    query: "car accessories product photography",
+    category: "Automotive",
+    names: [
+      "Car Phone Holder",
+      "Car Charger",
+      "Car Vacuum Cleaner",
+      "Car Air Freshener",
+      "Car Seat Cushion",
+      "Jump Starter",
+      "Tyre Inflator",
+      "Dashboard Camera",
+      "Car Bluetooth Adapter",
+      "Emergency Car Kit"
+    ]
+  },
 
-  return "🛍️";
-}
+  {
+    query: "travel luggage product photography",
+    category: "Travel",
+    names: [
+      "Large Travel Suitcase",
+      "Carry-On Suitcase",
+      "Travel Duffel Bag",
+      "Passport Holder",
+      "Travel Neck Pillow",
+      "Packing Cubes",
+      "Toiletry Bag",
+      "Travel Organizer",
+      "Cabin Backpack",
+      "Luggage Scale"
+    ]
+  },
 
-/* =========================================================
-   FAST LOCAL PRODUCT IMAGE
-   No LoremFlickr.
-   No external image server.
-   No repeated remote photos.
-========================================================= */
+  {
+    query: "smart home gadgets product photography",
+    category: "Smart Home",
+    names: [
+      "Smart Doorbell",
+      "Smart Plug",
+      "Smart Light",
+      "Security Camera",
+      "Smart Door Lock",
+      "WiFi Router",
+      "Smart Alarm Clock",
+      "Smart Sensor",
+      "Video Doorbell",
+      "Home Automation Hub"
+    ]
+  },
 
-function escapeXml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+  {
+    query: "phones accessories product photography",
+    category: "Phones & Tablets",
+    names: [
+      "Phone Case",
+      "Fast USB-C Charger",
+      "Wireless Charging Pad",
+      "Power Bank",
+      "Tempered Glass Screen Protector",
+      "USB-C Cable",
+      "Lightning Cable",
+      "Phone Tripod",
+      "Selfie Stick",
+      "Car Phone Mount"
+    ]
+  },
 
-function hashNumber(text) {
-  let h = 0;
+  {
+    query: "fashion accessories product photography",
+    category: "Accessories",
+    names: [
+      "Leather Belt",
+      "Baseball Cap",
+      "Sun Hat",
+      "Fashion Sunglasses",
+      "Reading Glasses",
+      "Silk Scarf",
+      "Wallet",
+      "Card Holder",
+      "Travel Wallet",
+      "Key Holder"
+    ]
+  },
 
-  for (let i = 0; i < text.length; i++) {
-    h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  {
+    query: "home decor product photography",
+    category: "Home",
+    names: [
+      "Wall Clock",
+      "Decorative Vase",
+      "Picture Frame",
+      "Artificial Plant",
+      "Scented Candle",
+      "Throw Pillow",
+      "Decorative Basket",
+      "Wall Mirror",
+      "Table Decor",
+      "Curtain Set"
+    ]
+  },
+
+  {
+    query: "pet supplies product photography",
+    category: "Pets",
+    names: [
+      "Pet Bed",
+      "Pet Food Bowl",
+      "Pet Leash",
+      "Pet Collar",
+      "Pet Carrier",
+      "Pet Grooming Brush",
+      "Pet Toy Ball",
+      "Pet Water Bottle",
+      "Pet Training Pad",
+      "Pet Storage Container"
+    ]
+  },
+
+  {
+    query: "music instruments product photography",
+    category: "Music",
+    names: [
+      "Acoustic Guitar",
+      "Electric Guitar",
+      "Keyboard Piano",
+      "Digital Piano",
+      "Ukulele",
+      "Drum Set",
+      "Violin",
+      "Microphone",
+      "Guitar Stand",
+      "Music Headphones"
+    ]
   }
 
-  return h;
-}
-
-function productSvg(product) {
-  const seed = hashNumber(
-    String(product.id) +
-    product.name +
-    product.category
-  );
-
-  const backgrounds = [
-    "#FFF7ED",
-    "#EFF6FF",
-    "#F0FDFA",
-    "#FDF2F8",
-    "#F5F3FF",
-    "#F7FEE7",
-    "#FFF1F2",
-    "#ECFEFF",
-    "#FEFCE8",
-    "#F8FAFC"
-  ];
-
-  const accents = [
-    "#f97316",
-    "#2563eb",
-    "#14b8a6",
-    "#db2777",
-    "#7c3aed",
-    "#65a30d",
-    "#e11d48",
-    "#0891b2",
-    "#ca8a04",
-    "#475569"
-  ];
-
-  const bg =
-    backgrounds[seed % backgrounds.length];
-
-  const accent =
-    accents[seed % accents.length];
-
-  const rotation =
-    (seed % 11) - 5;
-
-  const emoji = visualFor(
-    product.name,
-    product.category
-  );
-
-  const safeName = escapeXml(product.name);
-
-  return `
-<svg xmlns="http://www.w3.org/2000/svg"
-     width="600"
-     height="600"
-     viewBox="0 0 600 600">
-
-  <defs>
-    <linearGradient id="g${seed}"
-      x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${bg}"/>
-      <stop offset="100%" stop-color="#ffffff"/>
-    </linearGradient>
-
-    <filter id="shadow${seed}">
-      <feDropShadow
-        dx="0"
-        dy="14"
-        stdDeviation="16"
-        flood-opacity=".14"/>
-    </filter>
-  </defs>
-
-  <rect
-    width="600"
-    height="600"
-    rx="42"
-    fill="url(#g${seed})"/>
-
-  <circle
-    cx="${90 + seed % 80}"
-    cy="${80 + seed % 70}"
-    r="52"
-    fill="${accent}"
-    opacity=".10"/>
-
-  <circle
-    cx="${500 - seed % 70}"
-    cy="${470 - seed % 60}"
-    r="75"
-    fill="${accent}"
-    opacity=".08"/>
-
-  <g transform="rotate(${rotation} 300 290)"
-     filter="url(#shadow${seed})">
-
-    <rect
-      x="105"
-      y="105"
-      width="390"
-      height="360"
-      rx="38"
-      fill="#ffffff"/>
-
-    <rect
-      x="120"
-      y="120"
-      width="360"
-      height="330"
-      rx="30"
-      fill="${accent}"
-      opacity=".07"/>
-
-    <text
-      x="300"
-      y="310"
-      text-anchor="middle"
-      font-size="145"
-      font-family="Arial, sans-serif">
-      ${emoji}
-    </text>
-  </g>
-
-  <rect
-    x="70"
-    y="495"
-    width="460"
-    height="58"
-    rx="29"
-    fill="${accent}"
-    opacity=".10"/>
-
-  <text
-    x="300"
-    y="532"
-    text-anchor="middle"
-    font-size="23"
-    font-weight="700"
-    font-family="Arial, sans-serif"
-    fill="#172033">
-    ${safeName.length > 31
-      ? escapeXml(safeName.slice(0, 31)) + "…"
-      : safeName}
-  </text>
-
-</svg>`;
-}
+];
 
 /* =========================================================
-   CREATE 500 PRODUCTS
+   CREATE 400 PRODUCTS
 ========================================================= */
 
-const priceRanges = {
-  "Phones & Tablets": [25000, 550000],
-  "Computing": [15000, 1200000],
-  "Electronics": [8000, 250000],
-  "TV & Audio": [15000, 1500000],
-  "Fashion": [8000, 180000],
-  "Shoes": [7000, 180000],
-  "Beauty": [3000, 120000],
-  "Home": [5000, 900000],
-  "Appliances": [8000, 1000000],
-  "Groceries": [1000, 50000],
-  "Gaming": [8000, 800000],
-  "Accessories": [3000, 250000],
-  "Baby": [3000, 300000],
-  "Sports": [3000, 700000],
-  "Books": [1500, 60000],
-  "Office": [1000, 400000]
-};
+function build400Products() {
 
-function generatedPrice(category, index) {
-  const range =
-    priceRanges[category] || [1000, 100000];
+  const products = [];
 
-  const min = range[0];
-  const max = range[1];
-
-  const value =
-    min +
-    ((index * 7919) % Math.max(1, max - min));
-
-  return Math.round(value / 500) * 500;
-}
-
-function makeGeneratedProducts() {
-  const result = [];
   let id = 1;
 
-  for (const category of Object.keys(productsByCategory)) {
-    const names = productsByCategory[category];
+  const basePrices = {
 
-    names.forEach((name, index) => {
-      const price = generatedPrice(
-        category,
-        index + id
-      );
+    "Phones & Tablets": 150000,
+    "Computing": 180000,
+    "Electronics": 35000,
+    "TV & Audio": 180000,
+    "Fashion": 18000,
+    "Shoes": 22000,
+    "Beauty": 8000,
+    "Home": 25000,
+    "Appliances": 45000,
+    "Groceries": 3500,
+    "Gaming": 35000,
+    "Accessories": 12000,
+    "Baby": 12000,
+    "Sports": 9000,
+    "Office": 4500,
+    "Books": 3500,
+    "Tools & Hardware": 7000,
+    "Automotive": 9000,
+    "Travel": 12000,
+    "Smart Home": 18000,
+    "Pets": 5000,
+    "Music": 18000
 
-      const hasOldPrice =
-        (index + id) % 3 !== 0;
+  };
 
-      const oldPrice = hasOldPrice
-        ? Math.round((price * 1.12) / 500) * 500
-        : null;
+  for (const group of PRODUCT_GROUPS) {
 
-      const product = {
+    for (const name of group.names) {
+
+      const base =
+        basePrices[group.category] || 10000;
+
+      const price =
+        Math.round(
+          (
+            base +
+            ((id * 137) %
+              Math.max(
+                1000,
+                Math.round(base * 0.8)
+              ))
+          ) / 100
+        ) * 100;
+
+      const oldPrice =
+        Math.round(
+          price *
+          (1.08 + ((id % 6) * 0.025)) *
+          100
+        ) / 100;
+
+      products.push({
+
         id: "P" + id,
-        name,
-        category,
-        price,
-        oldPrice,
-        rating: Number(
-          (4.1 + ((index + id) % 10) / 10).toFixed(1)
-        ),
-        stock: 15 + ((index * 7 + id) % 85),
-        sold: 50 + ((index * 113 + id * 7) % 5000),
-        image: `/product-image/P${id}`,
-        emoji: visualFor(name, category)
-      };
 
-      result.push(product);
+        name: name,
+
+        category: group.category,
+
+        image: "",
+
+        imageQuery: group.query,
+
+        pexelsPhotoId: null,
+
+        photographer: "",
+
+        photographerUrl: "",
+
+        pexelsUrl: "",
+
+        price: price,
+
+        oldPrice: oldPrice,
+
+        rating: Number(
+          (
+            4.3 +
+            ((id * 7) % 7) / 10
+          ).toFixed(1)
+        ),
+
+        stock: 25 + (id % 56),
+
+        deal: id % 7 === 0,
+
+        sold: 50 + ((id * 31) % 950),
+
+        description:
+          "Quality product from Good News Shopping."
+
+      });
+
       id++;
-    });
+
+    }
+
   }
 
-  /*
-    16 categories × 25 products = 400.
-    Add 100 extra products to make 500.
-  */
-
-  const extras = [
-    ["Phone Accessories Bundle", "Phones & Tablets"],
-    ["Premium Phone Bundle", "Phones & Tablets"],
-    ["Tablet Study Bundle", "Phones & Tablets"],
-    ["Fast Charging Bundle", "Phones & Tablets"],
-    ["Student Laptop Bundle", "Computing"],
-    ["Laptop Work Bundle", "Computing"],
-    ["Computer Starter Bundle", "Computing"],
-    ["Wireless Office Bundle", "Computing"],
-    ["Bluetooth Music Bundle", "Electronics"],
-    ["Home Electronics Bundle", "Electronics"],
-    ["Portable Gadget Bundle", "Electronics"],
-    ["Smart Home Bundle", "Electronics"],
-    ["Smart TV Bundle", "TV & Audio"],
-    ["Home Cinema Bundle", "TV & Audio"],
-    ["Audio Entertainment Bundle", "TV & Audio"],
-    ["Men's Fashion Bundle", "Fashion"],
-    ["Women's Fashion Bundle", "Fashion"],
-    ["Casual Clothing Bundle", "Fashion"],
-    ["Weekend Fashion Bundle", "Fashion"],
-    ["School Shoe Bundle", "Shoes"],
-    ["Sports Shoe Bundle", "Shoes"],
-    ["Casual Shoe Bundle", "Shoes"],
-    ["Beauty Starter Bundle", "Beauty"],
-    ["Hair Care Bundle", "Beauty"],
-    ["Makeup Bundle", "Beauty"],
-    ["Skin Care Bundle", "Beauty"],
-    ["Living Room Bundle", "Home"],
-    ["Bedroom Bundle", "Home"],
-    ["Office Furniture Bundle", "Home"],
-    ["Home Storage Bundle", "Home"],
-    ["Kitchen Appliance Bundle", "Appliances"],
-    ["Laundry Appliance Bundle", "Appliances"],
-    ["Cooking Appliance Bundle", "Appliances"],
-    ["Cleaning Appliance Bundle", "Appliances"],
-    ["Breakfast Grocery Bundle", "Groceries"],
-    ["Kitchen Grocery Bundle", "Groceries"],
-    ["Snack Grocery Bundle", "Groceries"],
-    ["Family Grocery Bundle", "Groceries"],
-    ["Gaming Starter Bundle", "Gaming"],
-    ["Console Gaming Bundle", "Gaming"],
-    ["PC Gaming Bundle", "Gaming"],
-    ["Gamer Accessories Bundle", "Gaming"],
-    ["Fashion Accessories Bundle", "Accessories"],
-    ["Jewellery Bundle", "Accessories"],
-    ["Travel Accessories Bundle", "Accessories"],
-    ["School Accessories Bundle", "Accessories"],
-    ["Baby Care Bundle", "Baby"],
-    ["Baby Feeding Bundle", "Baby"],
-    ["Baby Travel Bundle", "Baby"],
-    ["Baby Clothing Bundle", "Baby"],
-    ["Football Training Bundle", "Sports"],
-    ["Fitness Starter Bundle", "Sports"],
-    ["Gym Equipment Bundle", "Sports"],
-    ["Outdoor Sports Bundle", "Sports"],
-    ["Law Student Book Bundle", "Books"],
-    ["School Book Bundle", "Books"],
-    ["Self Development Book Bundle", "Books"],
-    ["Technology Book Bundle", "Books"],
-    ["Office Starter Bundle", "Office"],
-    ["School Office Bundle", "Office"],
-    ["Printer Bundle", "Office"],
-    ["Desk Essentials Bundle", "Office"],
-    ["Smartphone Gift Pack", "Phones & Tablets"],
-    ["Tablet Gift Pack", "Phones & Tablets"],
-    ["Laptop Gift Pack", "Computing"],
-    ["Headphone Gift Pack", "Electronics"],
-    ["TV Entertainment Pack", "TV & Audio"],
-    ["Fashion Gift Pack", "Fashion"],
-    ["Shoe Gift Pack", "Shoes"],
-    ["Beauty Gift Pack", "Beauty"],
-    ["Home Gift Pack", "Home"],
-    ["Kitchen Gift Pack", "Appliances"],
-    ["Food Gift Pack", "Groceries"],
-    ["Gaming Gift Pack", "Gaming"],
-    ["Accessory Gift Pack", "Accessories"],
-    ["Baby Gift Pack", "Baby"],
-    ["Sports Gift Pack", "Sports"],
-    ["Book Gift Pack", "Books"],
-    ["Office Gift Pack", "Office"],
-    ["Premium Shopping Pack", "Accessories"],
-    ["Everyday Essentials Pack", "Home"],
-    ["Student Essentials Pack", "Office"],
-    ["Family Essentials Pack", "Groceries"],
-    ["Travel Essentials Pack", "Accessories"],
-    ["Weekend Essentials Pack", "Fashion"],
-    ["Home Entertainment Pack", "TV & Audio"],
-    ["Tech Essentials Pack", "Electronics"],
-    ["Mobile Essentials Pack", "Phones & Tablets"],
-    ["Computer Essentials Pack", "Computing"],
-    ["Fitness Essentials Pack", "Sports"],
-    ["Baby Essentials Pack", "Baby"],
-    ["Beauty Essentials Pack", "Beauty"],
-    ["Kitchen Essentials Pack", "Appliances"],
-    ["Shoe Essentials Pack", "Shoes"],
-    ["Gaming Essentials Pack", "Gaming"],
-    ["Reading Essentials Pack", "Books"],
-    ["Work Essentials Pack", "Office"],
-    ["Complete Shopping Pack", "Home"],
-    ["Good News Mega Pack", "Accessories"]
-  ];
-
-  extras.forEach((x, index) => {
-    if (result.length >= 500) return;
-
-    const category = x[1];
-    const name = x[0];
-
-    const productNumber = result.length + 1;
-
-    const price = generatedPrice(
-      category,
-      productNumber + index + 100
-    );
-
-    result.push({
-      id: "P" + productNumber,
-      name,
-      category,
-      price,
-      oldPrice:
-        productNumber % 2 === 0
-          ? Math.round((price * 1.15) / 500) * 500
-          : null,
-      rating: Number(
-        (4.2 + (productNumber % 8) / 10).toFixed(1)
-      ),
-      stock: 20 + (productNumber % 70),
-      sold: 100 + ((productNumber * 37) % 4500),
-      image: `/product-image/P${productNumber}`,
-      emoji: visualFor(name, category)
-    });
-  });
-
-  return result.slice(0, 500);
+  return products;
 }
 
-const generatedProducts = makeGeneratedProducts();
-
-/*
-  Replace the old automatically generated P1-P500 products.
-  Keep products created manually by the admin.
-*/
-
-db.products = db.products.filter(
-  product => !/^P\d+$/.test(String(product.id))
-);
-
-db.products = [
-  ...generatedProducts,
-  ...db.products
-];
-
-save();
-
-console.log(
-  `Good News Shopping loaded ${generatedProducts.length} products.`
-);
-
 /* =========================================================
-   LOCAL IMAGE ROUTE
-   This is the important new part.
+   PEXELS
 ========================================================= */
 
-app.get("/product-image/:id", (req, res) => {
-  const product = db.products.find(
-    p => String(p.id) === String(req.params.id)
-  );
+async function pexelsPhotos(query, page) {
 
-  if (!product) {
-    return res.status(404).send("Image not found");
+  const url =
+    "https://api.pexels.com/v1/search?query=" +
+    encodeURIComponent(query) +
+    "&per_page=80&page=" +
+    page;
+
+  const response =
+    await fetch(url, {
+      headers: {
+        Authorization: PEXELS_API_KEY
+      }
+    });
+
+  if (!response.ok) {
+
+    const text =
+      await response.text();
+
+    throw new Error(
+      "Pexels API " +
+      response.status +
+      ": " +
+      text.slice(0, 200)
+    );
+
   }
 
-  const svg = productSvg(product);
+  return response.json();
+}
 
-  res.setHeader(
-    "Content-Type",
-    "image/svg+xml; charset=utf-8"
-  );
+/* =========================================================
+   COLLECT UNIQUE PHOTOS
+========================================================= */
+
+async function collectPhotos(
+  query,
+  needed,
+  usedIds
+) {
+
+  const picked = [];
+
+  for (
+    let page = 1;
+    page <= 3 &&
+    picked.length < needed;
+    page++
+  ) {
+
+    const data =
+      await pexelsPhotos(query, page);
+
+    for (
+      const photo of
+      (data.photos || [])
+    ) {
+
+      if (
+        !photo.id ||
+        usedIds.has(photo.id)
+      ) {
+        continue;
+      }
+
+      const src =
+        photo.src || {};
+
+      /*
+        LARGE IMAGE:
+        This deliberately uses a large Pexels
+        image instead of a tiny thumbnail.
+      */
+
+      const image =
+        src.large2x ||
+        src.large ||
+        src.medium ||
+        src.original;
+
+      if (!image) {
+        continue;
+      }
+
+      usedIds.add(photo.id);
+
+      picked.push({
+
+        id: photo.id,
+
+        image: image,
+
+        photographer:
+          photo.photographer || "",
+
+        photographerUrl:
+          photo.photographer_url || "",
+
+        pexelsUrl:
+          photo.url || ""
+
+      });
+
+      if (
+        picked.length >= needed
+      ) {
+        break;
+      }
+
+    }
+
+    if (!data.next_page) {
+      break;
+    }
+
+  }
+
+  return picked;
+}
+
+/* =========================================================
+   BUILD PRODUCT CATALOGUE
+========================================================= */
+
+async function ensureCatalog() {
+
+  const target =
+    build400Products();
 
   /*
-    Cache the image so the browser doesn't keep asking
-    for the same product picture.
+    Keep any products manually added
+    through the admin system.
   */
-  res.setHeader(
-    "Cache-Control",
-    "public, max-age=31536000, immutable"
+
+  const custom =
+    db.products.filter(
+      p =>
+        !/^P([1-9]\d{0,2}|400)$/.test(
+          String(p.id)
+        )
+    );
+
+  const oldProducts =
+    db.products || [];
+
+  db.products =
+    target
+      .map(fresh => {
+
+        const old =
+          oldProducts.find(
+            p => p.id === fresh.id
+          );
+
+        if (old) {
+
+          return {
+            ...fresh,
+            ...old,
+            name: fresh.name,
+            category: fresh.category,
+            imageQuery:
+              fresh.imageQuery
+          };
+
+        }
+
+        return fresh;
+
+      })
+      .concat(custom);
+
+  db.categories =
+    CATEGORY_SEED;
+
+  const generated =
+    db.products.filter(
+      p =>
+        /^P(?:[1-9]\d{0,2}|400)$/.test(
+          String(p.id)
+        )
+    );
+
+  /*
+    If all 400 already have images,
+    DON'T call Pexels again.
+  */
+
+  const complete =
+    generated.length >= 400 &&
+    generated.every(
+      p =>
+        p.pexelsPhotoId &&
+        p.image
+    );
+
+  if (complete) {
+
+    save();
+
+    console.log(
+      "Good News Shopping: 400 product images already saved."
+    );
+
+    return;
+  }
+
+  /*
+    If the API key is missing,
+    keep the website running.
+  */
+
+  if (!PEXELS_API_KEY) {
+
+    save();
+
+    console.error(
+      "PEXELS_API_KEY is missing. Add it in Render Environment Variables."
+    );
+
+    return;
+  }
+
+  console.log(
+    "Starting Pexels image setup for 400 products..."
   );
 
-  res.send(svg);
-});
+  const usedIds =
+    new Set();
+
+  for (
+    const p of generated
+  ) {
+
+    if (p.pexelsPhotoId) {
+
+      usedIds.add(
+        p.pexelsPhotoId
+      );
+
+    }
+
+  }
+
+  let count = 0;
+
+  /*
+    Each group contains 10 products.
+    One Pexels search supplies unique
+    photographs for those 10 products.
+  */
+
+  for (
+    const group of PRODUCT_GROUPS
+  ) {
+
+    const list =
+      generated.filter(
+        p =>
+          p.imageQuery ===
+          group.query
+      );
+
+    const missing =
+      list.filter(
+        p =>
+          !p.image ||
+          !p.pexelsPhotoId
+      );
+
+    if (!missing.length) {
+
+      count += list.length;
+
+      continue;
+    }
+
+    console.log(
+      "Searching Pexels for:",
+      group.query
+    );
+
+    const photos =
+      await collectPhotos(
+        group.query,
+        missing.length,
+        usedIds
+      );
+
+    if (
+      photos.length <
+      missing.length
+    ) {
+
+      throw new Error(
+        "Not enough unique Pexels photos returned for: " +
+        group.query
+      );
+
+    }
+
+    missing.forEach(
+      (product, index) => {
+
+        const photo =
+          photos[index];
+
+        product.image =
+          photo.image;
+
+        product.pexelsPhotoId =
+          photo.id;
+
+        product.photographer =
+          photo.photographer;
+
+        product.photographerUrl =
+          photo.photographerUrl;
+
+        product.pexelsUrl =
+          photo.pexelsUrl;
+
+      }
+    );
+
+    count += list.length;
+
+    save();
+
+    console.log(
+      "Real images ready: " +
+      count +
+      "/400"
+    );
+
+  }
+
+  save();
+
+  console.log(
+    "DONE: 400 real Pexels product photos assigned."
+  );
+}
+
+/* =========================================================
+   AUTH HELPERS
+========================================================= */
+
+function uid(prefix) {
+
+  return (
+    prefix +
+    "-" +
+    crypto
+      .randomBytes(5)
+      .toString("hex")
+      .toUpperCase()
+  );
+
+}
+
+function safe(user) {
+
+  return {
+
+    id: user.id,
+
+    name: user.name,
+
+    email: user.email,
+
+    role: user.role,
+
+    createdAt:
+      user.createdAt
+
+  };
+
+}
+
+function tok(user) {
+
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role
+    },
+    SECRET,
+    {
+      expiresIn: "7d"
+    }
+  );
+
+}
+
+function auth(req, res, next) {
+
+  const header =
+    req.headers.authorization || "";
+
+  try {
+
+    req.user =
+      jwt.verify(
+        header.replace(
+          "Bearer ",
+          ""
+        ),
+        SECRET
+      );
+
+    next();
+
+  } catch {
+
+    res.status(401).json({
+      message:
+        "Please sign in."
+    });
+
+  }
+
+}
+
+function admin(req, res, next) {
+
+  if (
+    req.user.role !== "admin"
+  ) {
+
+    return res
+      .status(403)
+      .json({
+        message:
+          "Admin only."
+      });
+
+  }
+
+  next();
+
+}
+
+/* =========================================================
+   PRODUCT CLEANER
+========================================================= */
+
+function cleanProduct(
+  body,
+  existing = {}
+) {
+
+  return {
+
+    name: String(
+      body.name ??
+      existing.name ??
+      ""
+    ).trim(),
+
+    category: String(
+      body.category ??
+      existing.category ??
+      ""
+    ).trim(),
+
+    price: Number(
+      body.price ??
+      existing.price ??
+      0
+    ),
+
+    oldPrice: Number(
+      body.oldPrice ??
+      existing.oldPrice ??
+      0
+    ),
+
+    image: String(
+      body.image ??
+      existing.image ??
+      ""
+    ).trim(),
+
+    stock: Math.max(
+      0,
+      Math.floor(
+        Number(
+          body.stock ??
+          existing.stock ??
+          0
+        )
+      )
+    ),
+
+    rating:
+      Number(
+        body.rating ??
+        existing.rating ??
+        4.5
+      ) || 4.5,
+
+    deal: Boolean(
+      body.deal ??
+      existing.deal ??
+      false
+    ),
+
+    description: String(
+      body.description ??
+      existing.description ??
+      ""
+    ).trim()
+
+  };
+
+}
+
+/* =========================================================
+   STATIC WEBSITE
+========================================================= */
+
+app.use(
+  express.static(
+    path.join(
+      __dirname,
+      "public"
+    )
+  )
+);
 
 /* =========================================================
    PRODUCTS API
 ========================================================= */
 
-app.get("/api/products", (req, res) => {
-  res.json({
-    products: db.products,
-    categories: db.categories
-  });
-});
+app.get(
+  "/api/products",
+  (req, res) => {
+
+    res.json({
+
+      products:
+        db.products,
+
+      categories:
+        db.categories
+
+    });
+
+  }
+);
 
 /* =========================================================
-   AUTH REGISTER
+   REGISTER
 ========================================================= */
 
-app.post("/api/auth/register", async (req, res) => {
-  const {
-    name,
-    email,
-    password
-  } = req.body || {};
+app.post(
+  "/api/auth/register",
+  async (req, res) => {
 
-  const e = String(email || "")
-    .trim()
-    .toLowerCase();
+    const {
+      name,
+      email,
+      password
+    } = req.body || {};
 
-  if (!name || !e || !password) {
-    return res.status(400).json({
-      message: "All fields are required."
-    });
-  }
+    const e =
+      String(
+        email || ""
+      )
+        .trim()
+        .toLowerCase();
 
-  if (String(password).length < 6) {
-    return res.status(400).json({
-      message:
-        "Password must be at least 6 characters."
-    });
-  }
+    if (
+      !name ||
+      !e ||
+      !password
+    ) {
 
-  if (db.users.some(u => u.email === e)) {
-    return res.status(409).json({
-      message: "Email already registered."
-    });
-  }
+      return res
+        .status(400)
+        .json({
+          message:
+            "All fields are required."
+        });
 
-  const user = {
-    id: uid("USR"),
-    name: String(name).trim(),
-    email: e,
-    passwordHash: await bcrypt.hash(
-      String(password),
-      12
-    ),
-    role: "customer",
-    createdAt: new Date().toISOString()
-  };
-
-  db.users.push(user);
-  save();
-
-  res.json({
-    user: safeUser(user),
-    token: makeToken(user)
-  });
-});
-
-/* =========================================================
-   AUTH LOGIN
-========================================================= */
-
-app.post("/api/auth/login", async (req, res) => {
-  const {
-    email,
-    password
-  } = req.body || {};
-
-  const e = String(email || "")
-    .trim()
-    .toLowerCase();
-
-  let user = db.users.find(
-    u => u.email === e
-  );
-
-  /*
-    Admin login
-  */
-
-  if (
-    !user &&
-    e === ADMIN_EMAIL &&
-    password === ADMIN_PASSWORD
-  ) {
-    user = {
-      id: "ADMIN",
-      name: "Good News Admin",
-      email: ADMIN_EMAIL,
-      role: "admin",
-      createdAt: new Date().toISOString()
-    };
-  }
-
-  if (!user) {
-    return res.status(401).json({
-      message: "Invalid email or password."
-    });
-  }
-
-  if (user.role !== "admin") {
-    const valid = await bcrypt.compare(
-      String(password || ""),
-      user.passwordHash
-    );
-
-    if (!valid) {
-      return res.status(401).json({
-        message: "Invalid email or password."
-      });
     }
-  }
 
-  res.json({
-    user: safeUser(user),
-    token: makeToken(user)
-  });
-});
+    if (
+      password.length < 6
+    ) {
+
+      return res
+        .status(400)
+        .json({
+          message:
+            "Password must be at least 6 characters."
+        });
+
+    }
+
+    if (
+      db.users.some(
+        u => u.email === e
+      )
+    ) {
+
+      return res
+        .status(409)
+        .json({
+          message:
+            "Email already registered."
+        });
+
+    }
+
+    const user = {
+
+      id: uid("USR"),
+
+      name:
+        String(name).trim(),
+
+      email: e,
+
+      passwordHash:
+        await bcrypt.hash(
+          password,
+          12
+        ),
+
+      role: "customer",
+
+      createdAt:
+        new Date().toISOString()
+
+    };
+
+    db.users.push(user);
+
+    save();
+
+    res.json({
+
+      user:
+        safe(user),
+
+      token:
+        tok(user)
+
+    });
+
+  }
+);
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
+app.post(
+  "/api/auth/login",
+  async (req, res) => {
+
+    const {
+      email,
+      password
+    } = req.body || {};
+
+    const e =
+      String(
+        email || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    let user =
+      db.users.find(
+        x => x.email === e
+      );
+
+    if (
+      !user &&
+      e === ADMIN_EMAIL &&
+      password === ADMIN_PASSWORD
+    ) {
+
+      user = {
+
+        id: "ADMIN",
+
+        name:
+          "Good News Admin",
+
+        email:
+          ADMIN_EMAIL,
+
+        role: "admin",
+
+        createdAt:
+          new Date().toISOString()
+
+      };
+
+    }
+
+    if (!user) {
+
+      return res
+        .status(401)
+        .json({
+          message:
+            "Invalid email or password."
+        });
+
+    }
+
+    if (
+      user.role !== "admin" &&
+      !await bcrypt.compare(
+        password,
+        user.passwordHash
+      )
+    ) {
+
+      return res
+        .status(401)
+        .json({
+          message:
+            "Invalid email or password."
+        });
+
+    }
+
+    res.json({
+
+      user:
+        safe(user),
+
+      token:
+        tok(user)
+
+    });
+
+  }
+);
 
 /* =========================================================
    MY ORDERS
 ========================================================= */
 
-app.get("/api/orders/my", auth, (req, res) => {
-  const orders = db.orders
-    .filter(o => o.userId === req.user.id)
-    .reverse();
+app.get(
+  "/api/orders/my",
+  auth,
+  (req, res) => {
 
-  res.json({
-    orders
-  });
-});
+    res.json({
+
+      orders:
+        db.orders
+          .filter(
+            o =>
+              o.userId ===
+              req.user.id
+          )
+          .reverse()
+
+    });
+
+  }
+);
 
 /* =========================================================
    WHATSAPP NOTIFICATION
 ========================================================= */
 
 async function notify(order) {
+
   const token =
     process.env.WHATSAPP_ACCESS_TOKEN;
 
@@ -1361,173 +1673,481 @@ async function notify(order) {
     !phoneNumberId ||
     !adminWhatsApp
   ) {
+
     console.log(
-      "WhatsApp Cloud API not configured."
+      "WhatsApp Cloud API not configured for",
+      order.orderNumber
     );
+
     return;
   }
 
-  const body =
-    `New Good News Shopping order\n\n` +
-    `Order: ${order.orderNumber}\n` +
-    `Customer: ${order.customer.name}\n` +
-    `Phone: ${order.customer.phone}\n` +
-    `Total: ₦${order.total.toLocaleString()}`;
+  const message =
+    `New order ${order.orderNumber}
+Customer: ${order.customer.name}
+Phone: ${order.customer.phone}
+Total: ₦${order.total.toLocaleString()}`;
 
   try {
-    const response = await fetch(
-      `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: adminWhatsApp,
-          type: "text",
-          text: {
-            body
-          }
-        })
-      }
-    );
+
+    const response =
+      await fetch(
+        `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`,
+        {
+
+          method: "POST",
+
+          headers: {
+
+            Authorization:
+              `Bearer ${token}`,
+
+            "Content-Type":
+              "application/json"
+
+          },
+
+          body:
+            JSON.stringify({
+
+              messaging_product:
+                "whatsapp",
+
+              to:
+                adminWhatsApp,
+
+              type:
+                "text",
+
+              text: {
+                body:
+                  message
+              }
+
+            })
+
+        }
+      );
 
     console.log(
-      "WhatsApp response:",
       await response.json()
     );
+
   } catch (error) {
+
     console.error(
-      "WhatsApp error:",
       error.message
     );
+
   }
+
 }
 
 /* =========================================================
    CREATE ORDER
 ========================================================= */
 
-app.post("/api/orders", auth, async (req, res) => {
-  const {
-    name,
-    phone,
-    state,
-    city,
-    address,
-    paymentMethod,
-    items
-  } = req.body || {};
+app.post(
+  "/api/orders",
+  auth,
+  async (req, res) => {
 
-  if (
-    !name ||
-    !phone ||
-    !state ||
-    !city ||
-    !address ||
-    !Array.isArray(items) ||
-    !items.length
-  ) {
-    return res.status(400).json({
-      message:
-        "Complete checkout first."
-    });
-  }
-
-  let subtotal = 0;
-  const outputItems = [];
-
-  for (const item of items) {
-    const product = db.products.find(
-      p => String(p.id) === String(item.productId)
-    );
-
-    const quantity = Math.max(
-      1,
-      Number(item.qty) || 1
-    );
-
-    if (!product) {
-      return res.status(400).json({
-        message: "Product not found."
-      });
-    }
-
-    if (product.stock < quantity) {
-      return res.status(400).json({
-        message:
-          `${product.name} is out of stock.`
-      });
-    }
-
-    product.stock -= quantity;
-
-    subtotal +=
-      product.price * quantity;
-
-    outputItems.push({
-      productId: product.id,
-      name: product.name,
-      price: product.price,
-      qty: quantity,
-      image: product.image
-    });
-  }
-
-  const delivery =
-    subtotal > 500000 ? 0 : 2500;
-
-  const order = {
-    id: uid("ORD"),
-
-    orderNumber:
-      "GN-" +
-      Math.floor(
-        10000000 +
-        Math.random() * 89999999
-      ),
-
-    userId: req.user.id,
-
-    customer: {
+    const {
       name,
       phone,
       state,
       city,
-      address
-    },
+      address,
+      paymentMethod,
+      items
+    } = req.body || {};
 
-    paymentMethod,
+    if (
+      !name ||
+      !phone ||
+      !state ||
+      !city ||
+      !address ||
+      !items ||
+      !items.length
+    ) {
 
-    items: outputItems,
+      return res
+        .status(400)
+        .json({
+          message:
+            "Complete checkout first."
+        });
 
-    subtotal,
+    }
 
-    delivery,
+    let total = 0;
 
-    total: subtotal + delivery,
+    const orderItems = [];
 
-    status: "placed",
+    for (
+      const item of items
+    ) {
 
-    createdAt:
-      new Date().toISOString(),
+      const product =
+        db.products.find(
+          p =>
+            p.id ===
+            item.productId
+        );
 
-    updatedAt:
-      new Date().toISOString()
-  };
+      const qty =
+        Math.max(
+          1,
+          Number(item.qty)
+        );
 
-  db.orders.push(order);
+      if (
+        !product ||
+        product.stock < qty
+      ) {
 
-  save();
+        return res
+          .status(400)
+          .json({
+            message:
+              "Product unavailable or out of stock."
+          });
 
-  notify(order);
+      }
 
-  res.status(201).json({
-    order
-  });
-});
+      product.stock -= qty;
+
+      total +=
+        product.price *
+        qty;
+
+      orderItems.push({
+
+        productId:
+          product.id,
+
+        name:
+          product.name,
+
+        price:
+          product.price,
+
+        qty:
+          qty,
+
+        image:
+          product.image
+
+      });
+
+    }
+
+    const delivery =
+      total > 500000
+        ? 0
+        : 2500;
+
+    const order = {
+
+      id:
+        uid("ORD"),
+
+      orderNumber:
+        "GN-" +
+        Math.floor(
+          10000000 +
+          Math.random() *
+          89999999
+        ),
+
+      userId:
+        req.user.id,
+
+      customer: {
+
+        name,
+        phone,
+        state,
+        city,
+        address
+
+      },
+
+      paymentMethod,
+
+      items:
+        orderItems,
+
+      subtotal:
+        total,
+
+      delivery:
+        delivery,
+
+      total:
+        total + delivery,
+
+      status:
+        "placed",
+
+      createdAt:
+        new Date().toISOString(),
+
+      updatedAt:
+        new Date().toISOString()
+
+    };
+
+    db.orders.push(order);
+
+    save();
+
+    notify(order);
+
+    res
+      .status(201)
+      .json({
+        order
+      });
+
+  }
+);
+
+/* =========================================================
+   ADMIN PRODUCTS
+========================================================= */
+
+app.get(
+  "/api/admin/products",
+  auth,
+  admin,
+  (req, res) => {
+
+    res.json({
+
+      products:
+        db.products,
+
+      categories:
+        db.categories
+
+    });
+
+  }
+);
+
+/* =========================================================
+   ADD PRODUCT
+========================================================= */
+
+app.post(
+  "/api/admin/products",
+  auth,
+  admin,
+  (req, res) => {
+
+    const product =
+      cleanProduct(
+        req.body || {}
+      );
+
+    if (
+      !product.name ||
+      !product.category ||
+      !product.price ||
+      !product.image
+    ) {
+
+      return res
+        .status(400)
+        .json({
+          message:
+            "Name, category, price and image are required."
+        });
+
+    }
+
+    if (
+      !db.categories.some(
+        c =>
+          c.name ===
+          product.category
+      )
+    ) {
+
+      db.categories.push({
+
+        name:
+          product.category,
+
+        icon:
+          "🛍️"
+
+      });
+
+    }
+
+    const newProduct = {
+
+      id:
+        uid("P"),
+
+      ...product
+
+    };
+
+    db.products.unshift(
+      newProduct
+    );
+
+    save();
+
+    res
+      .status(201)
+      .json({
+        product:
+          newProduct
+      });
+
+  }
+);
+
+/* =========================================================
+   UPDATE PRODUCT
+========================================================= */
+
+app.patch(
+  "/api/admin/products/:id",
+  auth,
+  admin,
+  (req, res) => {
+
+    const index =
+      db.products.findIndex(
+        p =>
+          p.id ===
+          req.params.id
+      );
+
+    if (index < 0) {
+
+      return res
+        .status(404)
+        .json({
+          message:
+            "Product not found."
+        });
+
+    }
+
+    const product =
+      cleanProduct(
+        req.body || {},
+        db.products[index]
+      );
+
+    if (
+      !product.name ||
+      !product.category ||
+      !product.price ||
+      !product.image
+    ) {
+
+      return res
+        .status(400)
+        .json({
+          message:
+            "Name, category, price and image are required."
+        });
+
+    }
+
+    if (
+      !db.categories.some(
+        c =>
+          c.name ===
+          product.category
+      )
+    ) {
+
+      db.categories.push({
+
+        name:
+          product.category,
+
+        icon:
+          "🛍️"
+
+      });
+
+    }
+
+    db.products[index] = {
+
+      ...db.products[index],
+
+      ...product
+
+    };
+
+    save();
+
+    res.json({
+
+      product:
+        db.products[index]
+
+    });
+
+  }
+);
+
+/* =========================================================
+   DELETE PRODUCT
+========================================================= */
+
+app.delete(
+  "/api/admin/products/:id",
+  auth,
+  admin,
+  (req, res) => {
+
+    const index =
+      db.products.findIndex(
+        p =>
+          p.id ===
+          req.params.id
+      );
+
+    if (index < 0) {
+
+      return res
+        .status(404)
+        .json({
+          message:
+            "Product not found."
+        });
+
+    }
+
+    const removed =
+      db.products.splice(
+        index,
+        1
+      )[0];
+
+    save();
+
+    res.json({
+
+      product:
+        removed
+
+    });
+
+  }
+);
 
 /* =========================================================
    ADMIN ORDERS
@@ -1538,14 +2158,20 @@ app.get(
   auth,
   admin,
   (req, res) => {
+
     res.json({
-      orders: [...db.orders].reverse()
+
+      orders:
+        [...db.orders]
+          .reverse()
+
     });
+
   }
 );
 
 /* =========================================================
-   ADMIN UPDATE ORDER
+   UPDATE ORDER
 ========================================================= */
 
 app.patch(
@@ -1553,19 +2179,27 @@ app.patch(
   auth,
   admin,
   (req, res) => {
-    const order = db.orders.find(
-      o => o.id === req.params.id
-    );
+
+    const order =
+      db.orders.find(
+        o =>
+          o.id ===
+          req.params.id
+      );
 
     if (!order) {
-      return res.status(404).json({
-        message: "Order not found."
-      });
+
+      return res
+        .status(404)
+        .json({
+          message:
+            "Order not found."
+        });
+
     }
 
     order.status =
-      req.body.status ||
-      order.status;
+      req.body.status;
 
     order.updatedAt =
       new Date().toISOString();
@@ -1573,196 +2207,11 @@ app.patch(
     save();
 
     res.json({
+
       order
+
     });
-  }
-);
 
-/* =========================================================
-   ADMIN PRODUCT LIST
-========================================================= */
-
-app.get(
-  "/api/admin/products",
-  auth,
-  admin,
-  (req, res) => {
-    res.json({
-      products: db.products
-    });
-  }
-);
-
-/* =========================================================
-   ADMIN ADD PRODUCT
-========================================================= */
-
-app.post(
-  "/api/admin/products",
-  auth,
-  admin,
-  (req, res) => {
-    const {
-      name,
-      category,
-      price,
-      oldPrice,
-      stock
-    } = req.body || {};
-
-    if (
-      !name ||
-      !category ||
-      !Number(price)
-    ) {
-      return res.status(400).json({
-        message:
-          "Name, category and price are required."
-      });
-    }
-
-    const product = {
-      id: uid("P"),
-
-      name: String(name).trim(),
-
-      category: String(category).trim(),
-
-      price: Number(price),
-
-      oldPrice:
-        oldPrice
-          ? Number(oldPrice)
-          : null,
-
-      rating: 4.5,
-
-      stock:
-        Number(stock) || 10,
-
-      sold: 0,
-
-      image: null,
-
-      emoji: visualFor(
-        String(name),
-        String(category)
-      )
-    };
-
-    /*
-      Admin-created products also get a
-      fast local image automatically.
-    */
-
-    product.image =
-      `/product-image/${product.id}`;
-
-    db.products.unshift(product);
-
-    save();
-
-    res.status(201).json({
-      product
-    });
-  }
-);
-
-/* =========================================================
-   ADMIN EDIT PRODUCT
-========================================================= */
-
-app.patch(
-  "/api/admin/products/:id",
-  auth,
-  admin,
-  (req, res) => {
-    const product = db.products.find(
-      p => String(p.id) === String(req.params.id)
-    );
-
-    if (!product) {
-      return res.status(404).json({
-        message: "Product not found."
-      });
-    }
-
-    if (req.body.name !== undefined) {
-      product.name =
-        String(req.body.name).trim();
-    }
-
-    if (req.body.category !== undefined) {
-      product.category =
-        String(req.body.category).trim();
-    }
-
-    if (req.body.price !== undefined) {
-      product.price =
-        Number(req.body.price);
-    }
-
-    if (req.body.oldPrice !== undefined) {
-      product.oldPrice =
-        req.body.oldPrice
-          ? Number(req.body.oldPrice)
-          : null;
-    }
-
-    if (req.body.stock !== undefined) {
-      product.stock =
-        Number(req.body.stock);
-    }
-
-    product.emoji =
-      visualFor(
-        product.name,
-        product.category
-      );
-
-    product.image =
-      `/product-image/${product.id}`;
-
-    save();
-
-    res.json({
-      product
-    });
-  }
-);
-
-/* =========================================================
-   ADMIN DELETE PRODUCT
-========================================================= */
-
-app.delete(
-  "/api/admin/products/:id",
-  auth,
-  admin,
-  (req, res) => {
-    const before =
-      db.products.length;
-
-    db.products =
-      db.products.filter(
-        p =>
-          String(p.id) !==
-          String(req.params.id)
-      );
-
-    if (
-      db.products.length === before
-    ) {
-      return res.status(404).json({
-        message: "Product not found."
-      });
-    }
-
-    save();
-
-    res.json({
-      message: "Product deleted."
-    });
   }
 );
 
@@ -1770,68 +2219,81 @@ app.delete(
    HEALTH CHECK
 ========================================================= */
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    ok: true,
-    products: db.products.length,
-    message:
-      "Good News Shopping is running."
-  });
-});
+app.get(
+  "/api/health",
+  (req, res) => {
 
-/* =========================================================
-   STATIC WEBSITE
-========================================================= */
+    res.json({
 
-app.use(
-  express.static(
-    path.join(__dirname, "public"),
-    {
-      maxAge: "1d"
-    }
-  )
+      ok: true,
+
+      products:
+        db.products.length
+
+    });
+
+  }
 );
 
 /* =========================================================
    ADMIN PAGE
 ========================================================= */
 
-app.get("/admin", (req, res) => {
-  res.sendFile(
-    path.join(
-      __dirname,
-      "public",
-      "admin",
-      "index.html"
-    )
-  );
-});
+app.get(
+  "/admin",
+  (req, res) => {
+
+    res.sendFile(
+      path.join(
+        __dirname,
+        "public",
+        "admin",
+        "index.html"
+      )
+    );
+
+  }
+);
 
 /* =========================================================
-   WEBSITE FALLBACK
+   SPA FALLBACK
 ========================================================= */
 
-app.get("*", (req, res) => {
-  res.sendFile(
-    path.join(
-      __dirname,
-      "public",
-      "index.html"
-    )
-  );
-});
+app.get(
+  "*",
+  (req, res) => {
+
+    res.sendFile(
+      path.join(
+        __dirname,
+        "public",
+        "index.html"
+      )
+    );
+
+  }
+);
 
 /* =========================================================
    START SERVER
 ========================================================= */
 
-app.listen(PORT, () => {
-  console.log(
-    `Good News Shopping running on port ${PORT}`
-  );
+app.listen(
+  PORT,
+  () => {
 
-  console.log(
-    `Products available: ${db.products.length}`
-  );
-});
+    console.log(
+      `Good News Shopping running on port ${PORT}`
+    );
 
+    ensureCatalog()
+      .catch(
+        error =>
+          console.error(
+            "Catalog image setup failed:",
+            error.message
+          )
+      );
+
+  }
+);
